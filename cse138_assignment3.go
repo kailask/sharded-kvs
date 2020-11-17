@@ -1,14 +1,25 @@
 package main
 
-import (
-	"net/http"
-
-	"github.com/gorilla/mux"
+//Global constants for system
+const (
+	NumTokens = 5
+	MaxHash   = 1024
 )
 
-func main() {
-	r := mux.NewRouter()
+type token struct {
+	endpoint string
+	value    uint16
+}
 
-	http.Handle("/", r)
-	http.ListenAndServe(":13800", nil)
+type view struct {
+	nodes  []string
+	tokens []token
+}
+
+func (v *view) initTokens() {
+
+}
+
+func main() {
+	// r := mux.NewRouter()
 }
