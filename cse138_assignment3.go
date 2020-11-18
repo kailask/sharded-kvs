@@ -290,11 +290,9 @@ func main() {
 		}
 	}
 
-	// r := mux.NewRouter()
 	//handlers
 	r.HandleFunc("/kvs/setup", setupHandler).Methods("GET")
 	// r.HandleFunc("/kvs/updateView", updateViewHandler.Mathods("PUT"))
-	// r.HandleFunc("/kvs/hello", testHandler)
 
 	http.Handle("/", r)
 	http.ListenAndServe(":13800", nil)
