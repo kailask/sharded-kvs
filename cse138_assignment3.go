@@ -8,31 +8,31 @@ import (
 
 //Global constants for system
 const (
-	NumTokens = 5
+	NumTokens = 3
 	MaxHash   = 1024
 )
 
 type token struct {
-	endpoint string
-	value    uint32
+	Endpoint string
+	Value    uint32
 }
 
 type view struct {
-	nodes  []string
-	tokens []token
+	Nodes  []string
+	Tokens []token
 }
 
 type change struct {
-	removed bool
-	tokens  []uint32
+	Removed bool
+	Tokens  []uint32
 }
 
 //Register a change for a given token to a change map
 func addChange(changes map[string]*change, t *token) {
-	if c, exists := changes[t.endpoint]; exists {
-		c.tokens = append(c.tokens, t.value)
+	if c, exists := changes[t.Endpoint]; exists {
+		c.Tokens = append(c.Tokens, t.Value)
 	} else {
-		changes[t.endpoint] = &change{tokens: []uint32{t.value}}
+		changes[t.Endpoint] = &change{Tokens: []uint32{t.Value}}
 	}
 }
 
@@ -43,12 +43,12 @@ func generateTokens(addedNodes map[string]bool) []token {
 
 	for node := range addedNodes {
 		for i := 0; i < NumTokens; i++ {
-			tokens = append(tokens, token{endpoint: node, value: r.Uint32() % MaxHash})
+			tokens = append(tokens, token{Endpoint: node, Value: r.Uint32() % MaxHash})
 		}
 	}
 
 	sort.Slice(tokens, func(i, j int) bool {
-		return tokens[i].value < tokens[j].value
+		return tokens[i].Value < tokens[j].Value
 	})
 
 	return tokens
@@ -66,8 +66,8 @@ func (v *view) changeView(nodes []string) map[string]*change {
 		tokens, changes, err = v.mergeTokens(addedTokens, addedNodes, removedNodes)
 	}
 
-	v.nodes = nodes
-	v.tokens = tokens
+	v.Nodes = nodes
+	v.Tokens = tokens
 	return changes
 }
 
@@ -76,7 +76,7 @@ func (v *view) calcNodeDiff(nodes []string) (map[string]bool, map[string]bool) {
 	addedNodes, removedNodes := make(map[string]bool), make(map[string]bool)
 	nodesMap := make(map[string]int, len(nodes))
 
-	for _, node := range v.nodes {
+	for _, node := range v.Nodes {
 		nodesMap[node] += 2
 	}
 
@@ -96,7 +96,7 @@ func (v *view) calcNodeDiff(nodes []string) (map[string]bool, map[string]bool) {
 }
 
 func (v *view) mergeTokens(addedTokens []token, addedNodes map[string]bool, removedNodes map[string]bool) ([]token, map[string]*change, bool) {
-	newLength := len(v.tokens) + len(addedTokens) - (len(removedNodes) * NumTokens)
+	newLength := len(v.Tokens) + len(addedTokens) - (len(removedNodes) * NumTokens)
 	changes := make(map[string]*change)
 	tokens := make([]token, newLength)
 
@@ -104,8 +104,8 @@ func (v *view) mergeTokens(addedTokens []token, addedNodes map[string]bool, remo
 	vIndex, aIndex := 0, 0
 	var vToken, aToken *token
 
-	if v.tokens != nil && len(v.tokens) > 0 {
-		vToken = &v.tokens[vIndex]
+	if v.Tokens != nil && len(v.Tokens) > 0 {
+		vToken = &v.Tokens[vIndex]
 	}
 
 	if len(addedTokens) > 0 {
@@ -113,18 +113,18 @@ func (v *view) mergeTokens(addedTokens []token, addedNodes map[string]bool, remo
 	}
 
 	//Iterate through new tokens list each time adding smallest token from added tokens or view tokens
-	for i := 0; aToken != nil && vToken != nil; i++ {
+	for i := 0; aToken != nil || vToken != nil; i++ {
 		if vToken != nil {
 			//Iterate through view tokens until a token is found that isn't being removed
-			for removedNodes[vToken.endpoint] {
+			for removedNodes[vToken.Endpoint] {
 				//Register change for removed token
-				if _, exists := changes[vToken.endpoint]; !exists {
-					changes[vToken.endpoint] = &change{removed: true}
+				if _, exists := changes[vToken.Endpoint]; !exists {
+					changes[vToken.Endpoint] = &change{Removed: true}
 				}
 
 				vIndex++
-				if vIndex < len(v.tokens) {
-					vToken = &v.tokens[vIndex]
+				if vIndex < len(v.Tokens) {
+					vToken = &v.Tokens[vIndex]
 				} else {
 					vToken = nil
 					break
@@ -133,9 +133,9 @@ func (v *view) mergeTokens(addedTokens []token, addedNodes map[string]bool, remo
 		}
 
 		//Add smallest token to new list at i from added tokens or view tokens
-		if aToken != nil && (vToken == nil || aToken.value <= vToken.value) {
+		if aToken != nil && (vToken == nil || aToken.Value <= vToken.Value) {
 			//Detect collisions either between current added and view tokens or current and prev added tokens
-			if (vToken != nil && aToken.value == vToken.value) || (aIndex > 0 && aToken.value == addedTokens[aIndex-1].value) {
+			if (vToken != nil && aToken.Value == vToken.Value) || (aIndex > 0 && aToken.Value == addedTokens[aIndex-1].Value) {
 				return nil, nil, true
 			}
 
@@ -145,7 +145,7 @@ func (v *view) mergeTokens(addedTokens []token, addedNodes map[string]bool, remo
 			//Register change for view token changed by added token
 			if i == 0 {
 				lastWasChanged = true
-			} else if !addedNodes[tokens[i-1].endpoint] {
+			} else if !addedNodes[tokens[i-1].Endpoint] {
 				addChange(changes, &tokens[i-1])
 			}
 
@@ -157,16 +157,15 @@ func (v *view) mergeTokens(addedTokens []token, addedNodes map[string]bool, remo
 				aToken = nil
 			}
 		} else if vToken != nil {
-			tokens[i] = *vToken
-			vIndex++
-
-			//If we just added the last token to the new list we must notify it if lastWasChanged
-			if lastWasChanged && i == len(tokens) {
+			//If we are adding the last token to the new list we must notify it if lastWasChanged
+			if lastWasChanged && i == len(tokens)-1 {
 				addChange(changes, vToken)
 			}
 
-			if vIndex < len(v.tokens) {
-				vToken = &v.tokens[vIndex]
+			tokens[i] = *vToken
+			vIndex++
+			if vIndex < len(v.Tokens) {
+				vToken = &v.Tokens[vIndex]
 			} else {
 				vToken = nil
 			}
