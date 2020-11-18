@@ -42,20 +42,26 @@ type setupRes struct {
 }
 
 func setupHandler(w http.ResponseWriter, r *http.Request) {
-	ipAddr := r.RemoteAddr
+	fmt.Println("in setup handler")
+	ipAddr := strings.Split(r.RemoteAddr, ":")[0]
 	exists := false
+	fmt.Println("ip address of requester is", ipAddr)
+	// fmt.Println("nodes is", myView.nodes)
 
 	for _, node := range myView.nodes {
-		if node == ipAddr {
+		fmt.Println(strings.Split(node, ":")[0])
+		if address := strings.Split(node, ":")[0]; address == ipAddr {
 			exists = true
 			break
 		}
 	}
 
+	fmt.Println(exists)
 	if !exists {
 		w.WriteHeader(400)
 	} else {
 		//send view as is and changes
+		fmt.Println("I am in your view!")
 		var res setupRes
 		res = setupRes{}
 		res.updatedView = myView
@@ -71,19 +77,20 @@ func testHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func tests() view {
+	fmt.Println("in tests function")
 	nodes := []string{"10.10.0.4:13800", "10.10.0.5:13800"}
 	vnodes := []token{}
 	for i := 0; i < 10; i++ {
+		// fmt.Println(i, nodes[i%2])
 		t := token{}
 		ip := nodes[i%2]
 		t.endpoint = ip
 		t.value = rand.Uint32()
-		vnodes[i] = t
+		vnodes = append(vnodes, t)
 	}
 	v := view{}
 	v.nodes = nodes
 	v.tokens = vnodes
-
 	return v
 }
 
@@ -103,11 +110,13 @@ func main() {
 		fmt.Println("coordinator is " + address)
 		// myView := view{nodes: nodes}
 		// myView.initTokens()
-		myView := test()
-		fmt.Printf("%+v\n", myView)
+		myView = tests()
+		// fmt.Printf("%+v\n", myView)
+		fmt.Println("view generated")
 	} else if exists {
 		//create a get request to the first node to ask for the updated view
 		fmt.Println("other node in view is " + address)
+		// fmt.Println("url is", "http://"+nodes[0]+"/kvs/setup")
 		setupReq, err := http.NewRequest("GET", "http://"+nodes[0]+"/kvs/setup", nil)
 		if err != nil {
 			fmt.Println("Error with creating new request")
@@ -124,6 +133,7 @@ func main() {
 				res = setupRes{}
 				json.Unmarshal(bytes, &res)
 				myView = res.updatedView
+				fmt.Printf("%+v\n", myView)
 			}
 		}
 	}
