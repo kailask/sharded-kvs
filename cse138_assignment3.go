@@ -1,13 +1,20 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/gorilla/mux"
 )
+
+// global variables
+var myView view
+
+//need a map of maps variable as well
 
 const (
 	NumTokens = 5
@@ -28,32 +35,52 @@ func (v *view) initTokens() {
 
 }
 
+type setupRes struct {
+	updatedView view
+}
+
 func setupHandler(w http.ResponseWriter, r *http.Request) {
+	ipAddr := r.RemoteAddr
+	exists := false
+
+	for _, node := range myView.nodes {
+		if node == ipAddr {
+			exists = true
+			break
+		}
+	}
+
+	if !exists {
+		w.WriteHeader(400)
+	} else {
+		var res setupRes
+		res = setupRes{}
+		res.updatedView = myView
+		w.WriteHeader(200)
+		bytes, _ := json.Marshal(res)
+		w.Write(bytes)
+
+	}
 
 }
 
 func main() {
 	r := mux.NewRouter()
 
-	var view string
+	var viewArray string
 	var address string
-	view, _ = os.LookupEnv("VIEW")
+	var exists bool
+	viewArray, exists = os.LookupEnv("VIEW")
 	address, _ = os.LookupEnv("ADDRESS")
-	nodes := strings.Split(view, ",")
+	nodes := strings.Split(viewArray, ",")
 
-	//setup a custom request, add a timer and after timer is up send request to the curr node
-
-	//if addresss matches first ip_addr in view
+	//if address matches first ip_addr in view
 	if address == nodes[0] {
 		//calls and gets the view containing nodes array and tokens array
-		// myView := view{nodes: nodes}
-		// myView.initTokens()
-
-		//listens for incoming requests from the other nodes and responds with the new view
-		r.HandleFunc("/kvs/setup", setupHandler).Methods("GET")
-
-	} else {
-		//create a post request to the first node to ask for the updated view
+		myView := view{nodes: nodes}
+		myView.initTokens()
+	} else if exists {
+		//create a get request to the first node to ask for the updated view
 		setupReq, err := http.NewRequest("GET", "http://"+nodes[0]+"/kvs/setup", nil)
 		if err != nil {
 			fmt.Println("Error with creating new request")
@@ -61,13 +88,25 @@ func main() {
 
 		resp, err := http.DefaultClient.Do(setupReq)
 		if err != nil {
-			fmt.Println("Error when send request to node 1")
+			fmt.Println("Error when sending request to coordinator node")
+		} else {
+			if resp.StatusCode == 200 {
+				bytes, _ := ioutil.ReadAll(resp.Body)
+				//unmarshall
+				var res setupRes
+				res = setupRes{}
+				json.Unmarshal(bytes, &res)
+				myView = res.updatedView
+			}
 		}
 
-		//after sending request and getting response updat the current node's view
+		//after sending request and getting response update the current node's view
 		//then start listening to requests as normal
 
 	}
+
+	//handlers
+	r.HandleFunc("/kvs/setup", setupHandler).Methods("GET")
 
 	//start listening for requests whats wrong with having each of the nodes listen immediately?
 	http.Handle("/", r)
