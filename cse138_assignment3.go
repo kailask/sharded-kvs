@@ -24,13 +24,13 @@ const (
 )
 
 type token struct {
-	endpoint string
-	value    uint32
+	Endpoint string
+	Value    uint32
 }
 
 type view struct {
-	nodes  []string
-	tokens []token
+	Nodes  []string
+	Tokens []token
 }
 
 func (v *view) initTokens() {
@@ -38,7 +38,8 @@ func (v *view) initTokens() {
 }
 
 type setupRes struct {
-	updatedView view
+	UpdatedView view
+	//changes
 }
 
 func setupHandler(w http.ResponseWriter, r *http.Request) {
@@ -48,8 +49,7 @@ func setupHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("ip address of requester is", ipAddr)
 	// fmt.Println("nodes is", myView.nodes)
 
-	for _, node := range myView.nodes {
-		fmt.Println(strings.Split(node, ":")[0])
+	for _, node := range myView.Nodes {
 		if address := strings.Split(node, ":")[0]; address == ipAddr {
 			exists = true
 			break
@@ -60,21 +60,22 @@ func setupHandler(w http.ResponseWriter, r *http.Request) {
 	if !exists {
 		w.WriteHeader(400)
 	} else {
-		//send view as is and changes
-		fmt.Println("I am in your view!")
+		// send view as is and changes
+		fmt.Println("You are in my view!")
 		var res setupRes
 		res = setupRes{}
-		res.updatedView = myView
-		w.WriteHeader(200)
+		res.UpdatedView = myView
+		// fmt.Printf("%+v\n", res)
 		bytes, _ := json.Marshal(res)
+		w.WriteHeader(200)
 		w.Write(bytes)
 	}
 
 }
 
-func testHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello, world!")
-}
+// func testHandler(w http.ResponseWriter, r *http.Request) {
+// 	fmt.Fprintf(w, "Hello, world!")
+// }
 
 func tests() view {
 	fmt.Println("in tests function")
@@ -84,13 +85,13 @@ func tests() view {
 		// fmt.Println(i, nodes[i%2])
 		t := token{}
 		ip := nodes[i%2]
-		t.endpoint = ip
-		t.value = rand.Uint32()
+		t.Endpoint = ip
+		t.Value = rand.Uint32()
 		vnodes = append(vnodes, t)
 	}
 	v := view{}
-	v.nodes = nodes
-	v.tokens = vnodes
+	v.Nodes = nodes
+	v.Tokens = vnodes
 	return v
 }
 
@@ -123,24 +124,31 @@ func main() {
 		}
 
 		resp, err := http.DefaultClient.Do(setupReq)
+		// fmt.Println("response is", resp)
 		if err != nil {
 			fmt.Println("Error when sending request to coordinator node")
 		} else {
 			if resp.StatusCode == 200 {
-				bytes, _ := ioutil.ReadAll(resp.Body)
+				bytes, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					fmt.Println("There was an error")
+				}
 				//unmarshall
 				var res setupRes
 				res = setupRes{}
 				json.Unmarshal(bytes, &res)
-				myView = res.updatedView
-				fmt.Printf("%+v\n", myView)
+				fmt.Printf("responded struct is %+v\n", res)
+				myView = res.UpdatedView
+			} else {
+				fmt.Println("I'm not in your view :(")
 			}
 		}
 	}
 
 	//handlers
 	r.HandleFunc("/kvs/setup", setupHandler).Methods("GET")
-	r.HandleFunc("/kvs/hello", testHandler)
+	// r.HandleFunc("/kvs/updateView", updateViewHandler.Mathods("PUT"))
+	// r.HandleFunc("/kvs/hello", testHandler)
 
 	http.Handle("/", r)
 	http.ListenAndServe(":13800", nil)
