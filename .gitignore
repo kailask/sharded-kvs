@@ -1,3 +1,5 @@
 #VS Code
 .devcontainer
 .vscode
+script.sh
+script2.sh

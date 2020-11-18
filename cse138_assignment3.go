@@ -16,6 +16,7 @@ var myView view
 
 //need a map of maps variable as well
 
+//comment
 const (
 	NumTokens = 5
 	MaxHash   = 1024
@@ -53,15 +54,19 @@ func setupHandler(w http.ResponseWriter, r *http.Request) {
 	if !exists {
 		w.WriteHeader(400)
 	} else {
+		//send view as is and changes
 		var res setupRes
 		res = setupRes{}
 		res.updatedView = myView
 		w.WriteHeader(200)
 		bytes, _ := json.Marshal(res)
 		w.Write(bytes)
-
 	}
 
+}
+
+func testHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hello, world!")
 }
 
 func main() {
@@ -73,6 +78,8 @@ func main() {
 	viewArray, exists = os.LookupEnv("VIEW")
 	address, _ = os.LookupEnv("ADDRESS")
 	nodes := strings.Split(viewArray, ",")
+
+	fmt.Println("addres is " + address)
 
 	//if address matches first ip_addr in view
 	if address == nodes[0] {
@@ -99,16 +106,12 @@ func main() {
 				myView = res.updatedView
 			}
 		}
-
-		//after sending request and getting response update the current node's view
-		//then start listening to requests as normal
-
 	}
 
 	//handlers
 	r.HandleFunc("/kvs/setup", setupHandler).Methods("GET")
+	r.HandleFunc("/kvs/hello", testHandler)
 
-	//start listening for requests whats wrong with having each of the nodes listen immediately?
 	http.Handle("/", r)
 	http.ListenAndServe(":13800", nil)
 
