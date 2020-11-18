@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -24,7 +25,7 @@ const (
 
 type token struct {
 	endpoint string
-	value    uint16
+	value    uint32
 }
 
 type view struct {
@@ -69,6 +70,23 @@ func testHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Hello, world!")
 }
 
+func tests() view {
+	nodes := []string{"10.10.0.4:13800", "10.10.0.5:13800"}
+	vnodes := []token{}
+	for i := 0; i < 10; i++ {
+		t := token{}
+		ip := nodes[i%2]
+		t.endpoint = ip
+		t.value = rand.Uint32()
+		vnodes[i] = t
+	}
+	v := view{}
+	v.nodes = nodes
+	v.tokens = vnodes
+
+	return v
+}
+
 func main() {
 	r := mux.NewRouter()
 
@@ -79,15 +97,17 @@ func main() {
 	address, _ = os.LookupEnv("ADDRESS")
 	nodes := strings.Split(viewArray, ",")
 
-	fmt.Println("addres is " + address)
-
 	//if address matches first ip_addr in view
 	if address == nodes[0] {
 		//calls and gets the view containing nodes array and tokens array
-		myView := view{nodes: nodes}
-		myView.initTokens()
+		fmt.Println("coordinator is " + address)
+		// myView := view{nodes: nodes}
+		// myView.initTokens()
+		myView := test()
+		fmt.Printf("%+v\n", myView)
 	} else if exists {
 		//create a get request to the first node to ask for the updated view
+		fmt.Println("other node in view is " + address)
 		setupReq, err := http.NewRequest("GET", "http://"+nodes[0]+"/kvs/setup", nil)
 		if err != nil {
 			fmt.Println("Error with creating new request")
