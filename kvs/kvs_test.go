@@ -1,6 +1,7 @@
 package kvs
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -237,5 +238,16 @@ func TestBinarySearch(t *testing.T) {
 			t.Errorf("The interval was %v when it should have been %v\n", interval, expectedIntervals[i])
 		}
 	}
+
+}
+
+func TestGenerateHash(t *testing.T) {
+	key1 := "Surya"
+	key2 := "Suresh"
+
+	val1 := generateHash(key1)
+	val2 := generateHash(key2)
+
+	fmt.Println(val1, val2)
 
 }

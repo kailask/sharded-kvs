@@ -1,6 +1,8 @@
 package kvs
 
 import (
+	"crypto/md5"
+	"math/big"
 	"math/rand"
 	"sort"
 	"time"
@@ -228,7 +230,32 @@ func binarySearch(Tokens []Token, target int) (int, []int) {
 
 }
 
-// func LinearSearch(Tokens []Token)
+//genereate the position of a key in the hash space
+//fix!!! need help converting [16]byte into int
+func generateHash(key string) uint64 {
+	data := []byte("key")
+	// fmt.Println(data)
+
+	num := md5.Sum(data)
+	// fmt.Println(num)
+	slice := num[8:]
+	// fmt.Println(slice)
+	bigInt := new(big.Int)
+	bigInt.SetBytes(slice)
+	decimal := bigInt.Uint64()
+
+	return decimal % MaxHash
+}
+
+//performa linear scan to see what the new shard if position not in interval
+func LinearSearch(Tokens []Token, keyPosition int, interval []int, endIndex int) string {
+	/*
+		think about the different cases
+		case 1: key is already within interval, meaning key < Tokens[endIndex].Value
+		case 2:
+	*/
+
+}
 
 func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]map[string]string {
 	change := changes[ipaddr] //change token for a given node
@@ -245,7 +272,9 @@ func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]
 		for vNode, storage := range store {
 			endIndex, interval := binarySearch(v.Tokens, vNode)
 			for key, value := range storage {
-				//figure out how to convert md5 hash into an int to allow for modding
+				position := generateHash(key)
+				newIpAddr := LinearSearch(v.Tokens, position, interval, endIndex)
+
 			}
 
 		}
