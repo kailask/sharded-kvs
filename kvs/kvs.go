@@ -7,7 +7,7 @@ import (
 )
 
 //KVS maps token values to k:v maps
-var KVS = map[int]map[string]string{}
+var KVS = map[uint64]map[string]string{}
 
 //Global constants for kvs
 const (
@@ -18,7 +18,7 @@ const (
 //Token contains an ip address and value in has space
 type Token struct {
 	Endpoint string `json:"endpoint"`
-	Value    int    `json:"value"`
+	Value    uint64 `json:"value"`
 }
 
 //View contains list of current nodes and their sorted tokens
@@ -29,8 +29,8 @@ type View struct {
 
 //Change is the changes to a single node during a view change
 type Change struct {
-	Removed bool  `json:"removed"`
-	Tokens  []int `json:"tokens,omitempty"`
+	Removed bool     `json:"removed"`
+	Tokens  []uint64 `json:"tokens,omitempty"`
 }
 
 //UpdateKVS updates the KVS to match the view given the changes required
@@ -41,7 +41,7 @@ func UpdateKVS(c Change) map[string]map[string]string {
 		return nil
 	} else if len(KVS) == 0 {
 		//KVS is empty so we must be joining a new view
-		for token := range c.Tokens {
+		for _, token := range c.Tokens {
 			KVS[token] = map[string]string{}
 		}
 		return nil
@@ -71,7 +71,7 @@ func (v *View) ChangeView(nodes []string) map[string]*Change {
 //Calculate the added and removed nodes as differences between the view and a given node list
 func (v *View) calcNodeDiff(nodes []string) (map[string]bool, map[string]bool) {
 	addedNodes, removedNodes := make(map[string]bool), make(map[string]bool)
-	nodesMap := make(map[string]int, len(nodes))
+	nodesMap := make(map[string]uint64, len(nodes))
 
 	for _, node := range v.Nodes {
 		nodesMap[node] += 2
@@ -177,7 +177,7 @@ func addChange(changes map[string]*Change, t *Token) {
 	if c, exists := changes[t.Endpoint]; exists {
 		c.Tokens = append(c.Tokens, t.Value)
 	} else {
-		changes[t.Endpoint] = &Change{Tokens: []int{t.Value}}
+		changes[t.Endpoint] = &Change{Tokens: []uint64{t.Value}}
 	}
 }
 
@@ -188,7 +188,7 @@ func generateTokens(addedNodes map[string]bool) []Token {
 
 	for node := range addedNodes {
 		for i := 0; i < NumTokens; i++ {
-			tokens = append(tokens, Token{Endpoint: node, Value: r.Intn(MaxHash)})
+			tokens = append(tokens, Token{Endpoint: node, Value: r.Uint64() % MaxHash})
 		}
 	}
 

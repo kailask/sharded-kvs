@@ -62,7 +62,7 @@ func TestMergeTokens(t *testing.T) {
 			map[string]bool{},
 			[]Token{{Endpoint: "1", Value: 10}, {Endpoint: "1", Value: 20}, {Endpoint: "1", Value: 30}},
 			[]Token{{Endpoint: "1", Value: 10}, {Endpoint: "1", Value: 20}, {Endpoint: "1", Value: 30}},
-			map[string]*Change{"1": &Change{Tokens: []int{10, 20, 30}}},
+			map[string]*Change{"1": &Change{Tokens: []uint64{10, 20, 30}}},
 			false,
 		},
 		{"Remove last node",
@@ -105,9 +105,9 @@ func TestMergeTokens(t *testing.T) {
 				{Endpoint: "3", Value: 40},
 			},
 			map[string]*Change{
-				"1": &Change{Tokens: []int{30}},
-				"2": &Change{Tokens: []int{12, 35, 37}},
-				"3": &Change{Tokens: []int{10}},
+				"1": &Change{Tokens: []uint64{30}},
+				"2": &Change{Tokens: []uint64{12, 35, 37}},
+				"3": &Change{Tokens: []uint64{10}},
 			},
 			false,
 		},
@@ -139,9 +139,9 @@ func TestMergeTokens(t *testing.T) {
 				{Endpoint: "3", Value: 40},
 			},
 			map[string]*Change{
-				"1": &Change{Tokens: []int{30}},
-				"2": &Change{Tokens: []int{2, 35, 37}},
-				"3": &Change{Tokens: []int{40}},
+				"1": &Change{Tokens: []uint64{30}},
+				"2": &Change{Tokens: []uint64{2, 35, 37}},
+				"3": &Change{Tokens: []uint64{40}},
 			},
 			false,
 		},
@@ -170,8 +170,8 @@ func TestMergeTokens(t *testing.T) {
 				{Endpoint: "1", Value: 30},
 			},
 			map[string]*Change{
-				"1": &Change{Tokens: []int{15, 20, 30}},
-				"2": &Change{Tokens: []int{12, 17, 25}},
+				"1": &Change{Tokens: []uint64{15, 20, 30}},
+				"2": &Change{Tokens: []uint64{12, 17, 25}},
 				"3": &Change{Removed: true},
 			},
 			false,
@@ -202,17 +202,4 @@ func TestMergeTokens(t *testing.T) {
 			}
 		})
 	}
-}
-
-func testBinarySearch(t *testing.T) {
-	var tests = []struct {
-		name        string
-		v           View
-		newNodes    map[string]bool
-		removeNodes map[string]bool
-		addedTokens []Token
-		tokenList   []Token
-		changes     map[string]*Change
-		collision   bool
-	}{}
 }
