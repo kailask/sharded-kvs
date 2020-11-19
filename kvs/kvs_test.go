@@ -203,3 +203,5 @@ func TestMergeTokens(t *testing.T) {
 		})
 	}
 }
+
+func testBinarySearch(t *testing.T)

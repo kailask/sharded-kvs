@@ -177,3 +177,38 @@ func generateTokens(addedNodes map[string]bool) []Token {
 
 	return tokens
 }
+
+var store map[uint32]map[string]string
+
+func binarySearch(Tokens []Token, target uint32) int {
+	index := sort.Search(len(Tokens), func(i int) bool { return Tokens[i].Value <= target })
+
+	//TODO: also need to handle case when the target node is at the end or beginning
+
+	//case when the vnode exists
+	if Tokens[index].Value == target {
+		// return Tokens[index]
+		return -1
+	}
+	return index
+
+}
+
+// func LinearSearch(Tokens []Token)
+
+func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]map[string]string {
+	change := changes[ipaddr]
+	removal := change.Removed
+	tokens := change.Tokens
+
+	//case 1 node is removed
+	if removal {
+		for vNode, storage := range store {
+			index := binarySearch(v.Tokens, vNode)
+			endNode := Tokens[index]
+		}
+
+	}
+}
+
+func createRequest()
