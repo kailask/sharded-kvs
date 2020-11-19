@@ -201,9 +201,7 @@ func generateTokens(addedNodes map[string]bool) []Token {
 	return tokens
 }
 
-var store map[int]map[string]string
-
-func binarySearch(Tokens []Token, target int) (int, []int) {
+func binarySearch(Tokens []Token, target uint64) (uint64, []int) {
 	/*possible index values
 	1) index can be an exact match meaning node still exists but takes on a diff range (this node will come from tokens)
 		need to find the node next to target node this will give me a new range (target node, next node)
@@ -268,19 +266,30 @@ func generateHash(key string) uint64 {
 }
 
 //performa linear scan to see what the new shard if position not in interval
-func LinearSearch(Tokens []Token, keyPosition int, interval []int, endIndex int) string {
+func LinearSearch(Tokens []Token, keyPosition uint64, interval []int, endIndex int) (string, uint64) {
 	/*
 		think about the different cases
 		case 1: key is already within interval, meaning key < Tokens[endIndex].Value
-		case 2:
+		case 2: key outside interval, meaning key > Tokens[endIndex].value
+			subcase 1: if the endIndex was the last index in the tokens array, then the node is the first node in the array
+			subcase 2: else move forward and check again
 	*/
+	for keyPosition > Tokens[endIndex].Value {
+		//the key is after the last node
+		if endIndex == len(Tokens) - 1:
+			return 
+	}
+
+	return nil, nil
 
 }
 
-func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]map[string]string {
+func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]map[uint64]map[string]string {
 	change := changes[ipaddr] //change token for a given node
 	removal := change.Removed //check if node removed
 	tokens := change.Tokens   //get the node's tokens that are changed
+	res := make(map[string]map[int]map[string]string)
+
 
 	/*possible nodes being repartitioned
 	1) node is being removed thus ALL its keys and values are recomputed, we perform binary search per vNode to see the desired destination
@@ -289,18 +298,27 @@ func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]
 	*/
 
 	if removal { //case 1: node is removed
-		for vNode, storage := range store {
+		for vNode, storage := range KVS {
 			endIndex, interval := binarySearch(v.Tokens, vNode)
+
+			goalToken := Tokens[endIndex]
 			for key, value := range storage {
 				position := generateHash(key)
+
+				//if hash matches the end we originally found
+				if position < goalToken.Value {
+					res[goalToken.]
+				}
 				newIpAddr := LinearSearch(v.Tokens, position, interval, endIndex)
 
 			}
 
 		}
-	} else if len(store) == 0 { //case 2: node was just added
+	} else if len(KVS) == 0 { //case 2: node was just added
 		//initialize nodes store with vnodes that were assigned in tokens
 	} else { //case 3: existing node needs to repartition
 
 	}
+
+	return nil
 }
