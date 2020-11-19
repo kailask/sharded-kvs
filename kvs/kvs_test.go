@@ -214,13 +214,27 @@ func TestBinarySearch(t *testing.T) {
 		{Endpoint: "1", Value: 30},
 	}
 
-	target := []int{12, 11, 39, 20, 24}
-	expected := []int{0, 0, 6, 3, 4}
+	target := []int{12, 11, 39, 20, 24, 30}
+	expectedIndices := []int{
+		1, 0, 0, 4, 4, 0,
+	}
+
+	expectedIntervals := [][]int{
+		{12, 15},
+		{30, 12},
+		{30, 12},
+		{20, 25},
+		{20, 25},
+		{30, 12},
+	}
 
 	for i := 0; i < len(target); i++ {
-		index := binarySearch(tokens1, target[i])
-		if index != expected[i] {
-			t.Errorf("The index was %d when it should have been %d\n", index, expected[i])
+		endIndex, interval := binarySearch(tokens1, target[i])
+		if endIndex != expectedIndices[i] {
+			t.Errorf("The index was %d when it should have been %d\n", endIndex, expectedIndices[i])
+		}
+		if !reflect.DeepEqual(interval, expectedIntervals[i]) {
+			t.Errorf("The interval was %v when it should have been %v\n", interval, expectedIntervals[i])
 		}
 	}
 

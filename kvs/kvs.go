@@ -181,15 +181,13 @@ func generateTokens(addedNodes map[string]bool) []Token {
 
 var store map[int]map[string]string
 
-func binarySearch(Tokens []Token, target int) int {
-	index := sort.Search(len(Tokens), func(i int) bool { return Tokens[i].Value >= target })
-
+func binarySearch(Tokens []Token, target int) (int, []int) {
 	/*possible index values
 	1) index can be an exact match meaning node still exists but takes on a diff range (this node will come from tokens)
 		need to find the node next to target node this will give me a new range (target node, next node)
 		if a key once recomputed is outside this range, we perform a linear scan to see if node next in line > than key's hash
 	2) index not an exact match meaning the node has been removed and thus we find the new node that takes on that key
-		this index will be the index of the node whose value is one less than the deleted node's value (target node, next node)
+		this index will be the index of where the node would have been (target node, next node)
 		if a key once recomputed is outside this range, we perform a linear scan to see if the node next in line > than key's hash
 	*/
 
@@ -199,18 +197,34 @@ func binarySearch(Tokens []Token, target int) int {
 		case 1) this index was an exact match, meaning nothing major happens we simply return like normal
 		case 2) this is one of the deleted nodes, meaning the target node needs to be set as the last node in tokens
 	2) When the returned index is the last value in the array
-		case 1) this index was an exact match, meaning
+		case 1) this index was an exact match, meaning its end interval is the first token
+		case 2) this was one of the deleted nodes, meaning the target node is one before
 
 
 	*/
 
-	return index
-	// //case when the vnode exists
-	// if Tokens[index].Value == target {
-	// 	// return Tokens[index]
-	// 	return -1
-	// }
-	// return index
+	index := sort.Search(len(Tokens), func(i int) bool { return Tokens[i].Value >= target })
+	interval := []int{}
+	var endIndex int
+
+	if Tokens[index].Value == target {
+		if index < len(Tokens)-1 {
+			interval = append(interval, target, Tokens[index+1].Value)
+			endIndex = index + 1
+		} else {
+			interval = append(interval, target, Tokens[0].Value)
+			endIndex = 0
+		}
+	} else {
+		if index > 0 && index < len(Tokens) {
+			interval = append(interval, Tokens[index-1].Value, Tokens[index].Value)
+			endIndex = index + 1
+		} else {
+			interval = append(interval, Tokens[len(Tokens)-1].Value, Tokens[0].Value)
+			endIndex = 0
+		}
+	}
+	return endIndex, interval
 
 }
 
