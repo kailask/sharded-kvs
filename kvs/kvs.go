@@ -201,7 +201,7 @@ func generateTokens(addedNodes map[string]bool) []Token {
 	return tokens
 }
 
-func binarySearch(Tokens []Token, target uint64) (uint64, []int) {
+func binarySearch(Tokens []Token, target uint64) int {
 	/*possible index values
 	1) index can be an exact match meaning node still exists but takes on a diff range (this node will come from tokens)
 		need to find the node next to target node this will give me a new range (target node, next node)
@@ -224,32 +224,31 @@ func binarySearch(Tokens []Token, target uint64) (uint64, []int) {
 	*/
 
 	index := sort.Search(len(Tokens), func(i int) bool { return Tokens[i].Value >= target })
-	interval := []int{}
+	// interval := []uint64{}
 	var endIndex int
 
 	if index < len(Tokens) && Tokens[index].Value == target {
 		if index < len(Tokens)-1 {
-			interval = append(interval, target, Tokens[index+1].Value)
+			// interval = append(interval, target, Tokens[index+1].Value)
 			endIndex = index + 1
 		} else {
-			interval = append(interval, target, Tokens[0].Value)
+			// interval = append(interval, target, Tokens[0].Value)
 			endIndex = 0
 		}
 	} else {
 		if index > 0 && index < len(Tokens) {
-			interval = append(interval, Tokens[index-1].Value, Tokens[index].Value)
+			// interval = append(interval, Tokens[index-1].Value, Tokens[index].Value)
 			endIndex = index
 		} else {
-			interval = append(interval, Tokens[len(Tokens)-1].Value, Tokens[0].Value)
+			// interval = append(interval, Tokens[len(Tokens)-1].Value, Tokens[0].Value)
 			endIndex = 0
 		}
 	}
-	return endIndex, interval
+	return endIndex
 
 }
 
 //genereate the position of a key in the hash space
-//fix!!! need help converting [16]byte into int
 func generateHash(key string) uint64 {
 	data := []byte("key")
 	// fmt.Println(data)
@@ -265,8 +264,8 @@ func generateHash(key string) uint64 {
 	return decimal % MaxHash
 }
 
-//performa linear scan to see what the new shard if position not in interval
-func LinearSearch(Tokens []Token, keyPosition uint64, interval []int, endIndex int) (string, uint64) {
+//perform a linear scan to see what the new shard if position not in interval
+func linearSearch(Tokens []Token, keyPosition uint64, endIndex int) Token {
 	/*
 		think about the different cases
 		case 1: key is already within interval, meaning key < Tokens[endIndex].Value
@@ -276,20 +275,38 @@ func LinearSearch(Tokens []Token, keyPosition uint64, interval []int, endIndex i
 	*/
 	for keyPosition > Tokens[endIndex].Value {
 		//the key is after the last node
-		if endIndex == len(Tokens) - 1:
-			return 
+		if endIndex == len(Tokens)-1 {
+			return Tokens[endIndex]
+		}
+		endIndex++
 	}
 
-	return nil, nil
+	if endIndex == 0 {
+		return Tokens[len(Tokens)-1]
+	}
+	return Tokens[endIndex-1]
 
+}
+
+func addKeyValue(key string, value string, res map[string]map[uint64]map[string]string, goalNode Token) {
+	//first check if goalNode's endpoint in res
+	_, exists := res[goalNode.Endpoint]
+
+	if exists {
+		res[goalNode.Endpoint][goalNode.Value][key] = value
+	} else {
+		resvNode := make(map[uint64]map[string]string)
+		reskvs := make(map[string]string)
+		reskvs[key] = value
+		resvNode[goalNode.Value] = reskvs
+	}
 }
 
 func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]map[uint64]map[string]string {
 	change := changes[ipaddr] //change token for a given node
 	removal := change.Removed //check if node removed
 	tokens := change.Tokens   //get the node's tokens that are changed
-	res := make(map[string]map[int]map[string]string)
-
+	res := make(map[string]map[uint64]map[string]string)
 
 	/*possible nodes being repartitioned
 	1) node is being removed thus ALL its keys and values are recomputed, we perform binary search per vNode to see the desired destination
@@ -299,26 +316,24 @@ func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]
 
 	if removal { //case 1: node is removed
 		for vNode, storage := range KVS {
-			endIndex, interval := binarySearch(v.Tokens, vNode)
-
-			goalToken := Tokens[endIndex]
+			endIndex := binarySearch(v.Tokens, vNode)
 			for key, value := range storage {
 				position := generateHash(key)
-
-				//if hash matches the end we originally found
-				if position < goalToken.Value {
-					res[goalToken.]
-				}
-				newIpAddr := LinearSearch(v.Tokens, position, interval, endIndex)
-
+				goalToken := linearSearch(v.Tokens, position, endIndex)
+				addKeyValue(key, value, res, goalToken)
 			}
-
 		}
 	} else if len(KVS) == 0 { //case 2: node was just added
-		//initialize nodes store with vnodes that were assigned in tokens
-	} else { //case 3: existing node needs to repartition
+		//kailas has already implemented
 
+	} else { //case 3: existing node needs to repartition
+		for _, token := range tokens {
+			for vNode, storage := range KVS {
+				
+			}
+			endIndex = 
+		}
 	}
 
-	return nil
+	return res
 }
