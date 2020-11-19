@@ -35,7 +35,7 @@ type Change struct {
 
 //UpdateKVS updates the KVS to match the view given the changes required
 //Returns the keys that must be resharded
-func UpdateKVS(c Change) map[string]map[string]string {
+func UpdateKVS(c Change) map[string]map[int]map[string]string {
 	if c.Removed {
 		//We are being review from the view and must reshard all keys
 		return nil

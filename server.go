@@ -63,8 +63,8 @@ func coordinateSetup(nodes []string) {
 	Setup.nodeJoined(nodes[0])
 }
 
-//Unmarshal the body of a response into a struct
-func unmarshalResponse(body io.ReadCloser, s interface{}) interface{} {
+//Unmarshal an http body into a struct
+func unmarshalStruct(body io.ReadCloser, s interface{}) interface{} {
 	if body != nil {
 		defer body.Close()
 	}
@@ -86,7 +86,7 @@ func joinView(leader string) {
 	uri := fmt.Sprintf("http://%s/kvs/int/init", leader)
 	res, err := http.Get(uri)
 	if err == nil && res.StatusCode == http.StatusOK {
-		v := unmarshalResponse(res.Body, &viewChange{}).(*viewChange)
+		v := unmarshalStruct(res.Body, &viewChange{}).(*viewChange)
 		*MyView = v.View
 		kvs.UpdateKVS(v.Changes)
 		AmActive = true
@@ -97,6 +97,7 @@ func joinView(leader string) {
 	}
 }
 
+//Handle internal setup request to join view
 func initHandler(w http.ResponseWriter, r *http.Request) {
 	if AmActive && Setup != nil {
 		remoteAddress := strings.Split(r.RemoteAddr, ":")[0]
@@ -126,6 +127,39 @@ func initHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusForbidden)
 }
 
+//Handle internal reshard post request
+func internalViewChangeHandler(w http.ResponseWriter, r *http.Request) {
+	newKeys := unmarshalStruct(r.Body, map[string]string{}).(map[string]string)
+	//handle new keys
+}
+
+//Handle internal view change propagation post request
+func internalViewChangeHandler(w http.ResponseWriter, r *http.Request) {
+	v := unmarshalStruct(r.Body, &viewChange{}).(*viewChange)
+	*MyView = v.View
+	reshards := kvs.UpdateKVS(v.Changes)
+	AmActive = true
+
+	for reshard := range reshards {
+		//go routine
+	}
+}
+
+//Handle external view change put request
+func viewChangeHandler(w http.ResponseWriter, r *http.Request) {
+	req := unmarshalStruct(r.Body, struct {
+		View string `json:"view"`
+	}{}).(struct{ View string })
+
+	nodes := strings.Split(req.View, ",")
+	oldNodes := MyView.Nodes
+	changes := MyView.ChangeView(nodes)
+
+	for node := range oldNodes {
+		//go routine
+	}
+}
+
 func main() {
 	r := mux.NewRouter()
 	r.Use(loggingMiddleware)
@@ -145,8 +179,13 @@ func main() {
 		joinView(nodes[0])
 	}
 
-	//Internal handlers
-	r.HandleFunc("/kvs/int/init", initHandler).Methods("GET")
+	//Internal endpoints
+	r.HandleFunc("/kvs/int/init", initHandler).Methods(http.MethodGet)
+	r.HandleFunc("/kvs/int/view-change", initHandler).Methods(http.MethodPost)
+	r.HandleFunc("/kvs/int/reshard", initHandler).Methods(http.MethodPost)
+
+	//External
+	r.HandleFunc("/kvs/view-change", viewChangeHandler).Methods(http.MethodPut)
 	// r.HandleFunc("/kvs/updateView", updateViewHandler.Mathods("PUT"))
 	// r.HandleFunc("/kvs/hello", testHandler)
 
