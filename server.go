@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -44,6 +45,7 @@ func (s *setupState) nodeJoined(node string) {
 	}
 }
 
+//Used to start setup if current node is first in list
 func coordinateSetup(nodes []string) {
 	//Remove port numbers
 	for i, node := range nodes {
@@ -59,31 +61,30 @@ func coordinateSetup(nodes []string) {
 	Setup.nodeJoined(nodes[0])
 }
 
+//Unmarshal the body of a response into a struct
+func unmarshalResponse(body io.ReadCloser, s interface{}) {
+	if body != nil {
+		defer body.Close()
+	}
+
+	bytes, err := ioutil.ReadAll(body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	err = json.Unmarshal(bytes, s)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+}
+
 //Try to join the view with the given leader
 func joinView(leader string) {
 	uri := fmt.Sprintf("http://%s/kvs/int/init", leader)
 	res, err := http.Get(uri)
 	if err == nil && res.StatusCode == http.StatusOK {
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		if res.Body != nil {
-			defer res.Body.Close()
-		}
-
-		bytes, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		v := viewChange{}
-		err = json.Unmarshal(bytes, &v)
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		*MyView = v.View
+		unmarshalResponse(res.Body, MyView)
 		//TODO: update kvs
 		Active = true
 		log.Println("Joined view")
