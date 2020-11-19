@@ -8,18 +8,18 @@ import (
 func TestCalcNodeDiff(t *testing.T) {
 	var tests = []struct {
 		name    string
-		v       view
+		v       View
 		n       []string
 		added   map[string]bool
 		removed map[string]bool
 	}{
-		{"No diff", view{Nodes: []string{"1", "2", "3"}}, []string{"1", "2", "3"}, map[string]bool{}, map[string]bool{}},
-		{"All added", view{Nodes: []string{}}, []string{"1", "2", "3"}, map[string]bool{"1": true, "2": true, "3": true}, map[string]bool{}},
-		{"Nil view", view{}, []string{"1", "2", "3"}, map[string]bool{"1": true, "2": true, "3": true}, map[string]bool{}},
-		{"All removed", view{Nodes: []string{"1", "2", "3"}}, []string{}, map[string]bool{}, map[string]bool{"1": true, "2": true, "3": true}},
-		{"Some added", view{Nodes: []string{"1", "2", "4"}}, []string{"1", "2", "3", "4", "5"}, map[string]bool{"3": true, "5": true}, map[string]bool{}},
-		{"Some removed", view{Nodes: []string{"1", "2", "3"}}, []string{"1"}, map[string]bool{}, map[string]bool{"2": true, "3": true}},
-		{"Added and removed", view{Nodes: []string{"1", "2", "4"}}, []string{"3", "4", "5"}, map[string]bool{"3": true, "5": true}, map[string]bool{"1": true, "2": true}},
+		{"No diff", View{Nodes: []string{"1", "2", "3"}}, []string{"1", "2", "3"}, map[string]bool{}, map[string]bool{}},
+		{"All added", View{Nodes: []string{}}, []string{"1", "2", "3"}, map[string]bool{"1": true, "2": true, "3": true}, map[string]bool{}},
+		{"Nil view", View{}, []string{"1", "2", "3"}, map[string]bool{"1": true, "2": true, "3": true}, map[string]bool{}},
+		{"All removed", View{Nodes: []string{"1", "2", "3"}}, []string{}, map[string]bool{}, map[string]bool{"1": true, "2": true, "3": true}},
+		{"Some added", View{Nodes: []string{"1", "2", "4"}}, []string{"1", "2", "3", "4", "5"}, map[string]bool{"3": true, "5": true}, map[string]bool{}},
+		{"Some removed", View{Nodes: []string{"1", "2", "3"}}, []string{"1"}, map[string]bool{}, map[string]bool{"2": true, "3": true}},
+		{"Added and removed", View{Nodes: []string{"1", "2", "4"}}, []string{"3", "4", "5"}, map[string]bool{"3": true, "5": true}, map[string]bool{"1": true, "2": true}},
 	}
 
 	for _, tt := range tests {
@@ -39,46 +39,46 @@ func TestCalcNodeDiff(t *testing.T) {
 func TestMergeTokens(t *testing.T) {
 	var tests = []struct {
 		name        string
-		v           view
+		v           View
 		newNodes    map[string]bool
 		removeNodes map[string]bool
-		addedTokens []token
-		tokenList   []token
-		changes     map[string]*change
+		addedTokens []Token
+		tokenList   []Token
+		changes     map[string]*Change
 		collision   bool
 	}{
 		{"No change",
-			view{Tokens: []token{{Endpoint: "1", Value: 10}}},
+			View{Tokens: []Token{{Endpoint: "1", Value: 10}}},
 			map[string]bool{},
 			map[string]bool{},
-			[]token{},
-			[]token{{Endpoint: "1", Value: 10}},
-			map[string]*change{},
+			[]Token{},
+			[]Token{{Endpoint: "1", Value: 10}},
+			map[string]*Change{},
 			false,
 		},
 		{"Initial",
-			view{},
+			View{},
 			map[string]bool{"1": true},
 			map[string]bool{},
-			[]token{{Endpoint: "1", Value: 10}, {Endpoint: "1", Value: 20}, {Endpoint: "1", Value: 30}},
-			[]token{{Endpoint: "1", Value: 10}, {Endpoint: "1", Value: 20}, {Endpoint: "1", Value: 30}},
-			map[string]*change{"1": &change{Tokens: []uint32{10, 20, 30}}},
+			[]Token{{Endpoint: "1", Value: 10}, {Endpoint: "1", Value: 20}, {Endpoint: "1", Value: 30}},
+			[]Token{{Endpoint: "1", Value: 10}, {Endpoint: "1", Value: 20}, {Endpoint: "1", Value: 30}},
+			map[string]*Change{"1": &Change{Tokens: []uint32{10, 20, 30}}},
 			false,
 		},
 		{"Remove last node",
-			view{Tokens: []token{
+			View{Tokens: []Token{
 				{Endpoint: "1", Value: 10},
 				{Endpoint: "1", Value: 20},
 				{Endpoint: "1", Value: 30}}},
 			map[string]bool{},
 			map[string]bool{"1": true},
-			[]token{},
-			[]token{},
-			map[string]*change{"1": &change{Removed: true}},
+			[]Token{},
+			[]Token{},
+			map[string]*Change{"1": &Change{Removed: true}},
 			false,
 		},
 		{"Add 1 node",
-			view{Tokens: []token{
+			View{Tokens: []Token{
 				{Endpoint: "3", Value: 10},
 				{Endpoint: "1", Value: 15},
 				{Endpoint: "1", Value: 20},
@@ -88,12 +88,12 @@ func TestMergeTokens(t *testing.T) {
 			}},
 			map[string]bool{"2": true},
 			map[string]bool{},
-			[]token{
+			[]Token{
 				{Endpoint: "2", Value: 12},
 				{Endpoint: "2", Value: 35},
 				{Endpoint: "2", Value: 37},
 			},
-			[]token{
+			[]Token{
 				{Endpoint: "3", Value: 10},
 				{Endpoint: "2", Value: 12},
 				{Endpoint: "1", Value: 15},
@@ -104,15 +104,15 @@ func TestMergeTokens(t *testing.T) {
 				{Endpoint: "2", Value: 37},
 				{Endpoint: "3", Value: 40},
 			},
-			map[string]*change{
-				"1": &change{Tokens: []uint32{30}},
-				"2": &change{Tokens: []uint32{12, 35, 37}},
-				"3": &change{Tokens: []uint32{10}},
+			map[string]*Change{
+				"1": &Change{Tokens: []uint32{30}},
+				"2": &Change{Tokens: []uint32{12, 35, 37}},
+				"3": &Change{Tokens: []uint32{10}},
 			},
 			false,
 		},
 		{"Add node with token at start",
-			view{Tokens: []token{
+			View{Tokens: []Token{
 				{Endpoint: "3", Value: 10},
 				{Endpoint: "1", Value: 15},
 				{Endpoint: "1", Value: 20},
@@ -122,12 +122,12 @@ func TestMergeTokens(t *testing.T) {
 			}},
 			map[string]bool{"2": true},
 			map[string]bool{},
-			[]token{
+			[]Token{
 				{Endpoint: "2", Value: 2},
 				{Endpoint: "2", Value: 35},
 				{Endpoint: "2", Value: 37},
 			},
-			[]token{
+			[]Token{
 				{Endpoint: "2", Value: 2},
 				{Endpoint: "3", Value: 10},
 				{Endpoint: "1", Value: 15},
@@ -138,15 +138,15 @@ func TestMergeTokens(t *testing.T) {
 				{Endpoint: "2", Value: 37},
 				{Endpoint: "3", Value: 40},
 			},
-			map[string]*change{
-				"1": &change{Tokens: []uint32{30}},
-				"2": &change{Tokens: []uint32{2, 35, 37}},
-				"3": &change{Tokens: []uint32{40}},
+			map[string]*Change{
+				"1": &Change{Tokens: []uint32{30}},
+				"2": &Change{Tokens: []uint32{2, 35, 37}},
+				"3": &Change{Tokens: []uint32{40}},
 			},
 			false,
 		},
 		{"Add 1 nodes, remove 1",
-			view{Tokens: []token{
+			View{Tokens: []Token{
 				{Endpoint: "3", Value: 10},
 				{Endpoint: "1", Value: 15},
 				{Endpoint: "1", Value: 20},
@@ -156,12 +156,12 @@ func TestMergeTokens(t *testing.T) {
 			}},
 			map[string]bool{"2": true},
 			map[string]bool{"3": true},
-			[]token{
+			[]Token{
 				{Endpoint: "2", Value: 12},
 				{Endpoint: "2", Value: 17},
 				{Endpoint: "2", Value: 25},
 			},
-			[]token{
+			[]Token{
 				{Endpoint: "2", Value: 12},
 				{Endpoint: "1", Value: 15},
 				{Endpoint: "2", Value: 17},
@@ -169,10 +169,10 @@ func TestMergeTokens(t *testing.T) {
 				{Endpoint: "2", Value: 25},
 				{Endpoint: "1", Value: 30},
 			},
-			map[string]*change{
-				"1": &change{Tokens: []uint32{15, 20, 30}},
-				"2": &change{Tokens: []uint32{12, 17, 25}},
-				"3": &change{Removed: true},
+			map[string]*Change{
+				"1": &Change{Tokens: []uint32{15, 20, 30}},
+				"2": &Change{Tokens: []uint32{12, 17, 25}},
+				"3": &Change{Removed: true},
 			},
 			false,
 		},

@@ -6,50 +6,32 @@ import (
 	"time"
 )
 
-type token struct {
-	Endpoint string
-	Value    uint32
+//Global constants for kvs
+const (
+	NumTokens = 3
+	MaxHash   = 1024
+)
+
+//Token contains an ip address and value in has space
+type Token struct {
+	Endpoint string `json:"endpoint"`
+	Value    uint32 `json:"value"`
 }
 
+//View contains list of current nodes and their sorted tokens
 type View struct {
-	Nodes  []string
-	Tokens []token
+	Nodes  []string `json:"nodes"`
+	Tokens []Token  `json:"tokens"`
 }
 
+//Change is the changes to a single node during a view change
 type Change struct {
-	Removed bool
-	Tokens  []uint32
+	Removed bool     `json:"removed"`
+	Tokens  []uint32 `json:"tokens,omitempty"`
 }
 
-//Register a change for a given token to a change map
-func addChange(changes map[string]*change, t *token) {
-	if c, exists := changes[t.Endpoint]; exists {
-		c.Tokens = append(c.Tokens, t.Value)
-	} else {
-		changes[t.Endpoint] = &change{Tokens: []uint32{t.Value}}
-	}
-}
-
-//Generate list of random tokens given map of nodes to add
-func generateTokens(addedNodes map[string]bool) []token {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	tokens := make([]token, len(addedNodes)*NumTokens)
-
-	for node := range addedNodes {
-		for i := 0; i < NumTokens; i++ {
-			tokens = append(tokens, token{Endpoint: node, Value: r.Uint32() % MaxHash})
-		}
-	}
-
-	sort.Slice(tokens, func(i, j int) bool {
-		return tokens[i].Value < tokens[j].Value
-	})
-
-	return tokens
-}
-
-//Change view of view struct given new state of active nodes. Returns map of changes
-func (v *view) ChangeView(nodes []string) map[string]*change {
+//ChangeView changes view struct given new state of active nodes. Returns map of changes
+func (v *View) ChangeView(nodes []string) map[string]*Change {
 	addedNodes, removedNodes := v.calcNodeDiff(nodes)
 	addedTokens := generateTokens(addedNodes)
 	tokens, changes, err := v.mergeTokens(addedTokens, addedNodes, removedNodes)
@@ -66,7 +48,7 @@ func (v *view) ChangeView(nodes []string) map[string]*change {
 }
 
 //Calculate the added and removed nodes as differences between the view and a given node list
-func (v *view) calcNodeDiff(nodes []string) (map[string]bool, map[string]bool) {
+func (v *View) calcNodeDiff(nodes []string) (map[string]bool, map[string]bool) {
 	addedNodes, removedNodes := make(map[string]bool), make(map[string]bool)
 	nodesMap := make(map[string]int, len(nodes))
 
@@ -89,14 +71,14 @@ func (v *view) calcNodeDiff(nodes []string) (map[string]bool, map[string]bool) {
 	return addedNodes, removedNodes
 }
 
-func (v *view) mergeTokens(addedTokens []token, addedNodes map[string]bool, removedNodes map[string]bool) ([]token, map[string]*change, bool) {
+func (v *View) mergeTokens(addedTokens []Token, addedNodes map[string]bool, removedNodes map[string]bool) ([]Token, map[string]*Change, bool) {
 	newLength := len(v.Tokens) + len(addedTokens) - (len(removedNodes) * NumTokens)
-	changes := make(map[string]*change)
-	tokens := make([]token, newLength)
+	changes := make(map[string]*Change)
+	tokens := make([]Token, newLength)
 
 	lastWasChanged := false
 	vIndex, aIndex := 0, 0
-	var vToken, aToken *token
+	var vToken, aToken *Token
 
 	if v.Tokens != nil && len(v.Tokens) > 0 {
 		vToken = &v.Tokens[vIndex]
@@ -113,7 +95,7 @@ func (v *view) mergeTokens(addedTokens []token, addedNodes map[string]bool, remo
 			for removedNodes[vToken.Endpoint] {
 				//Register change for removed token
 				if _, exists := changes[vToken.Endpoint]; !exists {
-					changes[vToken.Endpoint] = &change{Removed: true}
+					changes[vToken.Endpoint] = &Change{Removed: true}
 				}
 
 				vIndex++
@@ -167,4 +149,31 @@ func (v *view) mergeTokens(addedTokens []token, addedNodes map[string]bool, remo
 	}
 
 	return tokens, changes, false
+}
+
+//Register a change for a given token to a change map
+func addChange(changes map[string]*Change, t *Token) {
+	if c, exists := changes[t.Endpoint]; exists {
+		c.Tokens = append(c.Tokens, t.Value)
+	} else {
+		changes[t.Endpoint] = &Change{Tokens: []uint32{t.Value}}
+	}
+}
+
+//Generate list of random tokens given map of nodes to add
+func generateTokens(addedNodes map[string]bool) []Token {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	tokens := make([]Token, len(addedNodes)*NumTokens)
+
+	for node := range addedNodes {
+		for i := 0; i < NumTokens; i++ {
+			tokens = append(tokens, Token{Endpoint: node, Value: r.Uint32() % MaxHash})
+		}
+	}
+
+	sort.Slice(tokens, func(i, j int) bool {
+		return tokens[i].Value < tokens[j].Value
+	})
+
+	return tokens
 }
