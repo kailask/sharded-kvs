@@ -1,4 +1,4 @@
-module cse138_assignment3
+module server
 
 go 1.13
 
