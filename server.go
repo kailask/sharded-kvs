@@ -19,9 +19,10 @@ const Port = "13800"
 
 //Global node state
 var (
-	MyView             = &kvs.View{} //Node's current view
-	Active             = false       //Is node currently active?
-	Setup  *setupState = nil         //Used if node is coordinating setup
+	MyView                = &kvs.View{} //Node's current view
+	AmActive              = false       //Is node currently active?
+	Setup     *setupState = nil         //Used if node is coordinating setup
+	MyAddress string
 )
 
 //Contains data for propogating a view change to another node
@@ -54,7 +55,8 @@ func coordinateSetup(nodes []string) {
 
 	//Initialize local view and kvs
 	initialChanges := MyView.ChangeView(nodes)
-	Active = true
+	kvs.UpdateKVS(*initialChanges[MyAddress])
+	AmActive = true
 
 	joinedNodes := make(map[string]bool)
 	Setup = &setupState{initialChanges, joinedNodes}
@@ -62,7 +64,7 @@ func coordinateSetup(nodes []string) {
 }
 
 //Unmarshal the body of a response into a struct
-func unmarshalResponse(body io.ReadCloser, s interface{}) {
+func unmarshalResponse(body io.ReadCloser, s interface{}) interface{} {
 	if body != nil {
 		defer body.Close()
 	}
@@ -76,7 +78,7 @@ func unmarshalResponse(body io.ReadCloser, s interface{}) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-
+	return s
 }
 
 //Try to join the view with the given leader
@@ -84,9 +86,11 @@ func joinView(leader string) {
 	uri := fmt.Sprintf("http://%s/kvs/int/init", leader)
 	res, err := http.Get(uri)
 	if err == nil && res.StatusCode == http.StatusOK {
-		unmarshalResponse(res.Body, MyView)
-		//TODO: update kvs
-		Active = true
+		v := unmarshalResponse(res.Body, &viewChange{}).(*viewChange)
+		*MyView = v.View
+		kvs.UpdateKVS(v.Changes)
+		AmActive = true
+
 		log.Println("Joined view")
 	} else {
 		log.Println("Unable to join view")
@@ -94,7 +98,7 @@ func joinView(leader string) {
 }
 
 func initHandler(w http.ResponseWriter, r *http.Request) {
-	if Active && Setup != nil {
+	if AmActive && Setup != nil {
 		remoteAddress := strings.Split(r.RemoteAddr, ":")[0]
 		isInView := false
 
@@ -127,13 +131,14 @@ func main() {
 	r.Use(loggingMiddleware)
 
 	viewArray, exists := os.LookupEnv("VIEW")
-	address, _ := os.LookupEnv("ADDRESS")
+	endpoint, _ := os.LookupEnv("ADDRESS")
+	MyAddress = strings.Split(endpoint, ":")[0]
 	nodes := strings.Split(viewArray, ",")
 
-	log.Printf("Node starting at %s with view %v\n", address, nodes)
+	log.Printf("Node starting at %s with view %v\n", endpoint, nodes)
 
 	//if address matches first ip_addr in view
-	if address == nodes[0] {
+	if endpoint == nodes[0] {
 		log.Println("Node coordinating setup")
 		coordinateSetup(nodes)
 	} else if exists {

@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+//KVS maps token values to k:v maps
+var KVS = map[int]map[string]string{}
+
 //Global constants for kvs
 const (
 	NumTokens = 3
@@ -30,6 +33,24 @@ type Change struct {
 	Tokens  []int `json:"tokens,omitempty"`
 }
 
+//UpdateKVS updates the KVS to match the view given the changes required
+//Returns the keys that must be resharded
+func UpdateKVS(c Change) map[string]map[string]string {
+	if c.Removed {
+		//We are being review from the view and must reshard all keys
+		return nil
+	} else if len(KVS) == 0 {
+		//KVS is empty so we must be joining a new view
+		for token := range c.Tokens {
+			KVS[token] = map[string]string{}
+		}
+		return nil
+	} else {
+		//Some keys must be resharded
+		return nil
+	}
+}
+
 //ChangeView changes view struct given new state of active nodes. Returns map of changes
 func (v *View) ChangeView(nodes []string) map[string]*Change {
 	addedNodes, removedNodes := v.calcNodeDiff(nodes)
@@ -44,7 +65,6 @@ func (v *View) ChangeView(nodes []string) map[string]*Change {
 
 	v.Nodes = nodes
 	v.Tokens = tokens
-	//TODO: update/initialize kvs
 	return changes
 }
 
