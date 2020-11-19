@@ -207,7 +207,7 @@ func binarySearch(Tokens []Token, target int) (int, []int) {
 	interval := []int{}
 	var endIndex int
 
-	if Tokens[index].Value == target {
+	if index < len(Tokens) && Tokens[index].Value == target {
 		if index < len(Tokens)-1 {
 			interval = append(interval, target, Tokens[index+1].Value)
 			endIndex = index + 1
@@ -218,7 +218,7 @@ func binarySearch(Tokens []Token, target int) (int, []int) {
 	} else {
 		if index > 0 && index < len(Tokens) {
 			interval = append(interval, Tokens[index-1].Value, Tokens[index].Value)
-			endIndex = index + 1
+			endIndex = index
 		} else {
 			interval = append(interval, Tokens[len(Tokens)-1].Value, Tokens[0].Value)
 			endIndex = 0
