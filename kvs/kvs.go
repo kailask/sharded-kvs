@@ -230,25 +230,28 @@ func binarySearch(Tokens []Token, target int) (int, []int) {
 
 // func LinearSearch(Tokens []Token)
 
-// func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]map[string]string {
-// 	change := changes[ipaddr] //change token for a given node
-// 	removal := change.Removed //check if node removed
-// 	tokens := change.Tokens   //get the node's tokens that are changed
+func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]map[string]string {
+	change := changes[ipaddr] //change token for a given node
+	removal := change.Removed //check if node removed
+	tokens := change.Tokens   //get the node's tokens that are changed
 
-// 	/*possible nodes being repartitioned
-// 	1) node is being removed thus ALL its keys and values are recomputed, we perform binary search per vNode to see the desired destination
-// 	2) node already existing has been updated, thus recompute only some of the keys and values are recomputed, we perfrom binary search per affected vNode
-// 	3) node has just been added, we need to initialize our map of vnodes to key values and we just listen no repartitioning done here
-// 	*/
+	/*possible nodes being repartitioned
+	1) node is being removed thus ALL its keys and values are recomputed, we perform binary search per vNode to see the desired destination
+	2) node already existing has been updated, thus recompute only some of the keys and values are recomputed, we perfrom binary search per affected vNode
+	3) node has just been added, we need to initialize our map of vnodes to key values and we just listen no repartitioning done here
+	*/
 
-// 	//case 1 node is removed
-// 	if removal {
-// 		for vNode, storage := range store {
-// 			index := binarySearch(v.Tokens, vNode)
-// 			startNode := Tokens[index]
-// 		}
+	if removal { //case 1: node is removed
+		for vNode, storage := range store {
+			endIndex, interval := binarySearch(v.Tokens, vNode)
+			for key, value := range storage {
+				//figure out how to convert md5 hash into an int to allow for modding
+			}
 
-// 	}
-// }
+		}
+	} else if len(store) == 0 { //case 2: node was just added
+		//initialize nodes store with vnodes that were assigned in tokens
+	} else { //case 3: existing node needs to repartition
 
-// func createRequest()
+	}
+}
