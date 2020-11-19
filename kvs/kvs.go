@@ -15,7 +15,7 @@ const (
 //Token contains an ip address and value in has space
 type Token struct {
 	Endpoint string `json:"endpoint"`
-	Value    uint32 `json:"value"`
+	Value    int    `json:"value"`
 }
 
 //View contains list of current nodes and their sorted tokens
@@ -26,8 +26,8 @@ type View struct {
 
 //Change is the changes to a single node during a view change
 type Change struct {
-	Removed bool     `json:"removed"`
-	Tokens  []uint32 `json:"tokens,omitempty"`
+	Removed bool  `json:"removed"`
+	Tokens  []int `json:"tokens,omitempty"`
 }
 
 //ChangeView changes view struct given new state of active nodes. Returns map of changes
@@ -44,6 +44,7 @@ func (v *View) ChangeView(nodes []string) map[string]*Change {
 
 	v.Nodes = nodes
 	v.Tokens = tokens
+	//TODO: update/initialize kvs
 	return changes
 }
 
@@ -156,18 +157,18 @@ func addChange(changes map[string]*Change, t *Token) {
 	if c, exists := changes[t.Endpoint]; exists {
 		c.Tokens = append(c.Tokens, t.Value)
 	} else {
-		changes[t.Endpoint] = &Change{Tokens: []uint32{t.Value}}
+		changes[t.Endpoint] = &Change{Tokens: []int{t.Value}}
 	}
 }
 
 //Generate list of random tokens given map of nodes to add
 func generateTokens(addedNodes map[string]bool) []Token {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	tokens := make([]Token, len(addedNodes)*NumTokens)
+	tokens := []Token{}
 
 	for node := range addedNodes {
 		for i := 0; i < NumTokens; i++ {
-			tokens = append(tokens, Token{Endpoint: node, Value: r.Uint32() % MaxHash})
+			tokens = append(tokens, Token{Endpoint: node, Value: r.Intn(MaxHash)})
 		}
 	}
 
