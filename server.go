@@ -63,7 +63,7 @@ func coordinateSetup(nodes []string) {
 func joinView(leader string) {
 	uri := fmt.Sprintf("http://%s/kvs/int/init", leader)
 	res, err := http.Get(uri)
-	if err == nil || res.StatusCode == http.StatusOK {
+	if err != nil && res.StatusCode == http.StatusOK {
 		if err != nil {
 			log.Fatalln(err)
 		}
