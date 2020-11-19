@@ -203,3 +203,16 @@ func TestMergeTokens(t *testing.T) {
 		})
 	}
 }
+
+func testBinarySearch(t *testing.T) {
+	var tests = []struct {
+		name        string
+		v           View
+		newNodes    map[string]bool
+		removeNodes map[string]bool
+		addedTokens []Token
+		tokenList   []Token
+		changes     map[string]*Change
+		collision   bool
+	}{}
+}
