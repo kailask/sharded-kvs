@@ -179,37 +179,62 @@ func generateTokens(addedNodes map[string]bool) []Token {
 	return tokens
 }
 
-var store map[uint32]map[string]string
+var store map[int]map[string]string
 
-func binarySearch(Tokens []Token, target uint32) int {
-	index := sort.Search(len(Tokens), func(i int) bool { return Tokens[i].Value <= target })
+func binarySearch(Tokens []Token, target int) int {
+	index := sort.Search(len(Tokens), func(i int) bool { return Tokens[i].Value >= target })
+
+	/*possible index values
+	1) index can be an exact match meaning node still exists but takes on a diff range (this node will come from tokens)
+		need to find the node next to target node this will give me a new range (target node, next node)
+		if a key once recomputed is outside this range, we perform a linear scan to see if node next in line > than key's hash
+	2) index not an exact match meaning the node has been removed and thus we find the new node that takes on that key
+		this index will be the index of the node whose value is one less than the deleted node's value (target node, next node)
+		if a key once recomputed is outside this range, we perform a linear scan to see if the node next in line > than key's hash
+	*/
 
 	//TODO: also need to handle case when the target node is at the end or beginning
+	/* What happens when the index is at the beginning or end? How do we account for this test case?
+	1) When the returned index is the first value in the array
+		case 1) this index was an exact match, meaning nothing major happens we simply return like normal
+		case 2) this is one of the deleted nodes, meaning the target node needs to be set as the last node in tokens
+	2) When the returned index is the last value in the array
+		case 1) this index was an exact match, meaning
 
-	//case when the vnode exists
-	if Tokens[index].Value == target {
-		// return Tokens[index]
-		return -1
-	}
+
+	*/
+
 	return index
+	// //case when the vnode exists
+	// if Tokens[index].Value == target {
+	// 	// return Tokens[index]
+	// 	return -1
+	// }
+	// return index
 
 }
 
 // func LinearSearch(Tokens []Token)
 
-func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]map[string]string {
-	change := changes[ipaddr]
-	removal := change.Removed
-	tokens := change.Tokens
+// func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]map[string]string {
+// 	change := changes[ipaddr] //change token for a given node
+// 	removal := change.Removed //check if node removed
+// 	tokens := change.Tokens   //get the node's tokens that are changed
 
-	//case 1 node is removed
-	if removal {
-		for vNode, storage := range store {
-			index := binarySearch(v.Tokens, vNode)
-			endNode := Tokens[index]
-		}
+// 	/*possible nodes being repartitioned
+// 	1) node is being removed thus ALL its keys and values are recomputed, we perform binary search per vNode to see the desired destination
+// 	2) node already existing has been updated, thus recompute only some of the keys and values are recomputed, we perfrom binary search per affected vNode
+// 	3) node has just been added, we need to initialize our map of vnodes to key values and we just listen no repartitioning done here
+// 	*/
 
-	}
-}
+// 	//case 1 node is removed
+// 	if removal {
+// 		for vNode, storage := range store {
+// 			index := binarySearch(v.Tokens, vNode)
+// 			startNode := Tokens[index]
+// 		}
 
-func createRequest()
+// 	}
+// }
+
+// func createRequest()

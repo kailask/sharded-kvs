@@ -204,15 +204,24 @@ func TestMergeTokens(t *testing.T) {
 	}
 }
 
-func testBinarySearch(t *testing.T) {
-	var tests = []struct {
-		name        string
-		v           View
-		newNodes    map[string]bool
-		removeNodes map[string]bool
-		addedTokens []Token
-		tokenList   []Token
-		changes     map[string]*Change
-		collision   bool
-	}{}
+func TestBinarySearch(t *testing.T) {
+	tokens1 := []Token{
+		{Endpoint: "2", Value: 12},
+		{Endpoint: "1", Value: 15},
+		{Endpoint: "2", Value: 17},
+		{Endpoint: "1", Value: 20},
+		{Endpoint: "2", Value: 25},
+		{Endpoint: "1", Value: 30},
+	}
+
+	target := []int{12, 11, 39, 20, 24}
+	expected := []int{0, 0, 6, 3, 4}
+
+	for i := 0; i < len(target); i++ {
+		index := binarySearch(tokens1, target[i])
+		if index != expected[i] {
+			t.Errorf("The index was %d when it should have been %d\n", index, expected[i])
+		}
+	}
+
 }
