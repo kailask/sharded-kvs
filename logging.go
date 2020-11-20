@@ -49,7 +49,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(wrapped, r)
 
 		log.Printf(
-			"%v\t%s\t%s\t%s\t%s",
+			"%v\t%s\t%s\t\t%s\t%s",
 			wrapped.status,
 			r.Method,
 			r.URL.EscapedPath(),

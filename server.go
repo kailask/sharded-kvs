@@ -45,6 +45,12 @@ type keyValue struct {
 	Value *string `json:"value"`
 }
 
+//Key count struct used in building response to view change
+type shardCount struct {
+	Address  string `json:"address"`
+	KeyCount int    `json:"key-count"`
+}
+
 //Registers node as joined during initial setup and ends setup if all nodes are joined
 func (s *setupState) nodeJoined(node string) {
 	s.joinedNodes[node] = true
@@ -131,6 +137,58 @@ func initHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusForbidden)
 }
 
+//Get keys counts from shards needed for view change response
+func getKeyCounts() ([]shardCount, error) {
+	var wg sync.WaitGroup
+	wg.Add(len(MyView.Nodes))
+	shards := map[string]int{}
+	for _, node := range MyView.Nodes {
+		go getNodeKeyCount(&wg, node, shards)
+	}
+	wg.Wait()
+
+	if len(shards) == len(MyView.Nodes) {
+		shardArray := make([]shardCount, 0, len(MyView.Nodes))
+		for address, count := range shards {
+			shardArray = append(shardArray, shardCount{Address: address, KeyCount: count})
+		}
+		return shardArray, nil
+	}
+
+	return nil, errors.New("Not all key counts were found")
+}
+
+//Get key count for single node after view change
+func getNodeKeyCount(wg *sync.WaitGroup, node string, shards map[string]int) {
+	defer wg.Done()
+
+	if node == MyAddress {
+		shards[node] = kvs.KeyCount()
+	} else {
+		uri := fmt.Sprintf("http://%s:%s/kvs/key-count", node, Port)
+		res, err := http.Get(uri)
+		if err == nil && res.StatusCode == http.StatusOK {
+			if res.Body != nil {
+				defer res.Body.Close()
+			}
+
+			b, err := ioutil.ReadAll(res.Body)
+			if err != nil {
+				return
+			}
+
+			k := struct {
+				KeyCount int `json:"key-count"`
+			}{}
+			err = json.Unmarshal(b, &k)
+			if err != nil {
+				return
+			}
+			shards[node] = k.KeyCount
+		}
+	}
+}
+
 //Notify all nodes of impending view change
 func notifyViewChanges(addedNodes map[string]bool, oldNodes []string, changes map[string]*kvs.Change) error {
 	var wg sync.WaitGroup
@@ -208,6 +266,16 @@ func notifyNewView(wg *sync.WaitGroup, node string, v viewInit, nodesAccepted ma
 	uri := fmt.Sprintf("http://%s:%s/kvs/int/view-change", node, Port)
 	if makePost(uri, v) {
 		nodesAccepted[node] = true
+	}
+}
+
+//Routine to push reshard to changes to another node
+func pushReshard(wg *sync.WaitGroup, node string, shard map[string]map[string]string, successfulReshards map[string]bool) {
+	defer wg.Done()
+
+	uri := fmt.Sprintf("http://%s:%s/kvs/int/push", node, Port)
+	if makePost(uri, shard) {
+		successfulReshards[node] = true
 	}
 }
 
@@ -355,14 +423,7 @@ func executeReshards(shards map[string]map[string]map[string]string) error {
 
 	for node, shard := range shards {
 		//Push resharded keys to respective nodes
-		go func(wg *sync.WaitGroup, node string, shard map[string]map[string]string, successfulReshards map[string]bool) {
-			defer wg.Done()
-
-			uri := fmt.Sprintf("http://%s:%s/kvs/int/push", node, Port)
-			if makePost(uri, shard) {
-				successfulReshards[node] = true
-			}
-		}(&wg, node, shard, successfulReshards)
+		go pushReshard(&wg, node, shard, successfulReshards)
 	}
 
 	wg.Wait()
@@ -602,13 +663,27 @@ func viewChangeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// for node := range nodes {
-
-	// }
-	//TODO: get reponse with key counts
-	w.WriteHeader(http.StatusOK)
-
 	log.Println("View updated to", nodes)
+
+	//Get keys counts from shards
+	shardCounts, err := getKeyCounts()
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	b, err = json.Marshal(struct {
+		Message string       `json:"message"`
+		Shards  []shardCount `json:"shards"`
+	}{Message: "View change successful", Shards: shardCounts})
+	if err == nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write(b)
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+	}
 }
 
 //Handle external get requests for node's key count
@@ -680,7 +755,6 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		w.Write(b)
 	} else {
-		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(err)
 	}
 }
@@ -762,7 +836,6 @@ func setHandler(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		w.Write(b)
 	} else {
-		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(err)
 	}
 }
@@ -808,9 +881,33 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		w.Write(b)
 	} else {
-		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(err)
 	}
+}
+
+//Print state of system
+func debugHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("--------------------------------------")
+	fmt.Printf("Address: %s:%s Active: %v\n", MyAddress, Port, AmActive)
+	fmt.Printf("Nodes: %v\n", MyView.Nodes)
+	fmt.Printf("Tokens: %v\n", MyView.Tokens)
+	fmt.Printf("Keys: %v\n", kvs.KeyCount())
+	fmt.Println("--------------------------------------")
+	for key, partition := range kvs.KVS {
+		fmt.Printf("%v:\t%v\n", key, partition)
+	}
+	fmt.Println("--------------------------------------")
+
+	if r.Method == http.MethodGet {
+		for _, node := range MyView.Nodes {
+			if node != MyAddress && !makePost(fmt.Sprintf("http://%s:%s/kvs/debug", node, Port), struct{}{}) {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func main() {
@@ -847,6 +944,7 @@ func main() {
 	r.HandleFunc("/kvs/keys/{key}", getHandler).Methods(http.MethodGet)
 	r.HandleFunc("/kvs/keys/{key}", setHandler).Methods(http.MethodPut)
 	r.HandleFunc("/kvs/keys/{key}", deleteHandler).Methods(http.MethodDelete)
+	r.HandleFunc("/kvs/debug", debugHandler)
 
 	http.Handle("/", r)
 	http.ListenAndServe(":"+Port, nil)
