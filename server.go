@@ -535,6 +535,7 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			//Key would exist on other node
+			res.Address = token.Endpoint
 			returnedValue, err := executeGet(token, key)
 			if err == nil {
 				*value = returnedValue
