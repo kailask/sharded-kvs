@@ -35,6 +35,22 @@ type Change struct {
 	Tokens  []uint64 `json:"tokens,omitempty"`
 }
 
+//Get returns the value given the key and token
+func Get(token uint64, key string) (string, bool) {
+	value, exists := KVS[token][key]
+	return value, exists
+}
+
+//Set sets the key and value at the given token. Returns if updated or error
+func Set(token uint64, key string, value string) (bool, error) {
+	if partition, exists := KVS[token]; exists {
+		_, updated := partition[key]
+		partition[key] = value
+		return updated, nil
+	}
+	return false, errors.New("Token does not exist")
+}
+
 //KeyCount returns the current key count of the KVS
 func KeyCount() int {
 	keyCount := 0
