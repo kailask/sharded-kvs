@@ -59,6 +59,11 @@ func PushKeys(newKeys map[string]map[string]string) error {
 	return nil
 }
 
+//FindToken returns the token corresponding to a given key
+func (v *View) FindToken(key string) Token {
+	return Token{}
+}
+
 //UpdateKVS updates the KVS to match the view given the changes required
 //Returns the keys that must be resharded
 func (v *View) UpdateKVS(c Change) map[string]map[uint64]map[string]string {
