@@ -298,7 +298,6 @@ func TestLinearSearch(t *testing.T) {
 
 func TestReshard(t *testing.T) {
 	//initialize KVS map
-	var KVS = map[uint64]map[string]string{}
 	for i := 0; i < 20; i++ {
 		s := strconv.Itoa(i)
 		num := generateHash("key" + s)
@@ -343,57 +342,112 @@ func TestReshard(t *testing.T) {
 	// }
 
 	//create the expected map of repartitions
-	expectedMap := map[string]map[string]map[string]string{}
+	expectedMap := make(map[string]map[string]map[string]string)
 	for key, value := range KVS {
 		if key == 100 {
 			for k, v := range value {
 				if generateHash(k) >= 223 {
 					_, exists := expectedMap["2"]
 					if exists {
-						expectedMap["2"][strconv.Itoa(223)][k] = v
+						_, ex := expectedMap["2"][strconv.Itoa(223)]
+						if ex {
+							expectedMap["2"][strconv.Itoa(223)][k] = v
+						} else {
+							kvs := make(map[string]string)
+							expectedMap["2"][strconv.Itoa(223)] = kvs
+							expectedMap["2"][strconv.Itoa(223)][k] = v
+						}
 					} else {
 						kvs := make(map[string]string)
 						node := make(map[string]map[string]string)
-
-						KVS[934] = kvs
-						KVS[934]["key"+s] = s
+						expectedMap["2"] = node
+						expectedMap["2"][strconv.Itoa(223)] = kvs
+						expectedMap["2"][strconv.Itoa(223)][k] = v
 					}
 				}
 			}
 		}
 		if key == 490 {
 			for k, v := range value {
-
+				if generateHash(k) >= 670 {
+					_, exists := expectedMap["2"]
+					if exists {
+						_, ex := expectedMap["2"][strconv.Itoa(670)]
+						if ex {
+							expectedMap["2"][strconv.Itoa(670)][k] = v
+						} else {
+							kvs := make(map[string]string)
+							expectedMap["2"][strconv.Itoa(670)] = kvs
+							expectedMap["2"][strconv.Itoa(670)][k] = v
+						}
+					} else {
+						kvs := make(map[string]string)
+						node := make(map[string]map[string]string)
+						expectedMap["2"] = node
+						expectedMap["2"][strconv.Itoa(670)] = kvs
+						expectedMap["2"][strconv.Itoa(670)][k] = v
+					}
+				}
 			}
 		}
 		if key == 934 {
 			for k, v := range value {
-
+				if generateHash(k) >= 1000 || generateHash(k) < 100 {
+					_, exists := expectedMap["2"]
+					if exists {
+						_, ex := expectedMap["2"][strconv.Itoa(1000)]
+						if ex {
+							expectedMap["2"][strconv.Itoa(1000)][k] = v
+						} else {
+							kvs := make(map[string]string)
+							expectedMap["2"][strconv.Itoa(1000)] = kvs
+							expectedMap["2"][strconv.Itoa(1000)][k] = v
+						}
+					} else {
+						kvs := make(map[string]string)
+						node := make(map[string]map[string]string)
+						expectedMap["2"] = node
+						expectedMap["2"][strconv.Itoa(1000)] = kvs
+						expectedMap["2"][strconv.Itoa(1000)][k] = v
+					}
+				}
 			}
 		}
-
 	}
 
+	// pos := generateHash("Surya")
+	// if pos != 0 {
+	// 	t.Error("\nexpectedMap is:", expectedMap)
+	// }
+
 	var tests = []struct {
-		name     string
-		v        View
-		change   Change
-		expected map[string]map[string]map[string]string
+		name   string
+		v      View
+		change Change
 	}{
 		{
 			"Reshard test 1, 2 got added",
-			{[]Token{
-				{Endpoint: "1", Value: 100},
-				{Endpoint: "2", Value: 223},
-				{Endpoint: "3", Value: 309},
-				{Endpoint: "1", Value: 490},
-				{Endpoint: "2", Value: 670},
-				{Endpoint: "3", Value: 854},
-				{Endpoint: "1", Value: 934},
-				{Endpoint: "2", Value: 1000},
-			}},
-			Change{Removed: false, []Token{100, 490, 934}},
+			View{
+				Tokens: []Token{
+					{Endpoint: "1", Value: 100},
+					{Endpoint: "2", Value: 223},
+					{Endpoint: "3", Value: 309},
+					{Endpoint: "1", Value: 490},
+					{Endpoint: "2", Value: 670},
+					{Endpoint: "3", Value: 854},
+					{Endpoint: "1", Value: 934},
+					{Endpoint: "2", Value: 1000},
+				},
+			},
+			Change{Removed: false, Tokens: []uint64{100, 490, 934}},
 		},
+	}
+
+	for _, test := range tests {
+		res := test.v.Reshard(test.change)
+		if !reflect.DeepEqual(res, expectedMap) {
+			t.Errorf("%s\n The map was supposed to be %v but got %v\n", test.name, expectedMap, res)
+		}
 	}
 
 }

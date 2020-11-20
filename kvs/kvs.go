@@ -248,6 +248,7 @@ func generateHash(key string) uint64 {
 }
 
 //perform a linear scan to see what the new shard is
+//TDOO: broken you gotta fix this
 func linearSearch(Tokens []Token, keyPosition uint64, endIndex int) Token {
 	/*
 		think about the different cases
@@ -264,7 +265,7 @@ func linearSearch(Tokens []Token, keyPosition uint64, endIndex int) Token {
 		endIndex++
 	}
 
-	if endIndex == 0 {
+	if endIndex == 0 || endIndex == len(Tokens)-1 {
 		return Tokens[len(Tokens)-1]
 	}
 	return Tokens[endIndex-1]
@@ -276,15 +277,32 @@ func addKeyValue(key string, value string, res map[string]map[string]map[string]
 	_, exists := res[goalNode.Endpoint]
 
 	if exists {
-		gNode := strconv.FormatUint(goalNode.Value, 10)
-		res[goalNode.Endpoint][gNode][key] = value
+		_, ex := res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)]
+		if ex {
+			res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)][key] = value
+		} else {
+			kvs := make(map[string]string)
+			res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)] = kvs
+			res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)][key] = value
+		}
 	} else {
-		resvNode := make(map[string]map[string]string)
-		reskvs := make(map[string]string)
-		reskvs[key] = value
-		gNode := strconv.FormatUint(goalNode.Value, 10)
-		resvNode[gNode] = reskvs
+		kvs := make(map[string]string)
+		node := make(map[string]map[string]string)
+		res[goalNode.Endpoint] = node
+		res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)] = kvs
+		res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)][key] = value
 	}
+
+	// if exists {
+	// 	gNode := strconv.FormatUint(goalNode.Value, 10)
+	// 	res[goalNode.Endpoint][gNode][key] = value
+	// } else {
+	// 	resvNode := make(map[string]map[string]string)
+	// 	reskvs := make(map[string]string)
+	// 	reskvs[key] = value
+	// 	gNode := strconv.FormatUint(goalNode.Value, 10)
+	// 	resvNode[gNode] = reskvs
+	// }
 }
 
 //Reshard key value pairs
