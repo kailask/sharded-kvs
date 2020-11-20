@@ -2,6 +2,7 @@ package kvs
 
 import (
 	"errors"
+	"log"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -48,7 +49,17 @@ func Set(token uint64, key string, value string) (bool, error) {
 		partition[key] = value
 		return updated, nil
 	}
-	return false, errors.New("Token does not exist")
+	return false, errors.New("Partition does not exist")
+}
+
+//Delete deletes the key in the given token
+func Delete(token uint64, key string) error {
+	_, exists := KVS[token][key]
+	if exists {
+		delete(KVS[token], key)
+		return nil
+	}
+	return errors.New("Key does not exist")
 }
 
 //KeyCount returns the current key count of the KVS
@@ -64,12 +75,12 @@ func KeyCount() int {
 func PushKeys(newKeys map[string]map[string]string) error {
 	for token := range newKeys {
 		key, _ := strconv.ParseUint(token, 10, 64)
-		if store, exists := KVS[key]; exists {
-			for k, v := range store {
-				store[k] = v
+		if partition, exists := KVS[key]; exists {
+			for k, v := range partition {
+				partition[k] = v
 			}
 		} else {
-			return errors.New("Invalid token")
+			return errors.New("Partition does not exist")
 		}
 	}
 	return nil
@@ -77,7 +88,8 @@ func PushKeys(newKeys map[string]map[string]string) error {
 
 //FindToken returns the token corresponding to a given key
 func (v *View) FindToken(key string) Token {
-	return Token{} //TODO search for token
+	log.Println("Using token", v.Tokens[0])
+	return v.Tokens[0] //TODO search for token
 }
 
 //ChangeView changes view struct given new state of active nodes. Returns map of changes and map of new nodes
