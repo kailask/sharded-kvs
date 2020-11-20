@@ -1,15 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"server/kvs"
 	"strings"
+	"sync"
 
 	"github.com/gorilla/mux"
 )
@@ -25,10 +27,10 @@ var (
 	MyAddress string
 )
 
-//Contains data for propogating a view change to another node
-type viewChange struct {
+//Contains data for propogating an initial view to a newly added node
+type viewInit struct {
 	View    kvs.View   `json:"view"`
-	Changes kvs.Change `json:"changes,omitempty"`
+	Changes kvs.Change `json:"changes"`
 }
 
 //Used only during setup by first node
@@ -40,7 +42,9 @@ type setupState struct {
 //Registers node as joined during initial setup and ends setup if all nodes are joined
 func (s *setupState) nodeJoined(node string) {
 	s.joinedNodes[node] = true
-	if len(s.joinedNodes) == len(MyView.Nodes) {
+	if len(s.joinedNodes) == len(MyView.Nodes)-1 {
+		MyView.UpdateKVS(*Setup.initialChanges[MyAddress])
+		AmActive = true
 		Setup = nil
 		log.Println("Setup complete")
 	}
@@ -53,32 +57,11 @@ func coordinateSetup(nodes []string) {
 		nodes[i] = strings.Split(node, ":")[0]
 	}
 
-	//Initialize local view and kvs
-	initialChanges := MyView.ChangeView(nodes)
-	kvs.UpdateKVS(*initialChanges[MyAddress])
-	AmActive = true
+	//Initialize local view
+	initialChanges, _ := MyView.ChangeView(nodes)
 
 	joinedNodes := make(map[string]bool)
 	Setup = &setupState{initialChanges, joinedNodes}
-	Setup.nodeJoined(nodes[0])
-}
-
-//Unmarshal an http body into a struct
-func unmarshalStruct(body io.ReadCloser, s interface{}) interface{} {
-	if body != nil {
-		defer body.Close()
-	}
-
-	bytes, err := ioutil.ReadAll(body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	err = json.Unmarshal(bytes, s)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	return s
 }
 
 //Try to join the view with the given leader
@@ -86,9 +69,23 @@ func joinView(leader string) {
 	uri := fmt.Sprintf("http://%s/kvs/int/init", leader)
 	res, err := http.Get(uri)
 	if err == nil && res.StatusCode == http.StatusOK {
-		v := unmarshalStruct(res.Body, &viewChange{}).(*viewChange)
+		if res.Body != nil {
+			defer res.Body.Close()
+		}
+
+		b, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		v := viewInit{}
+		err = json.Unmarshal(b, &v)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
 		*MyView = v.View
-		kvs.UpdateKVS(v.Changes)
+		MyView.UpdateKVS(v.Changes)
 		AmActive = true
 
 		log.Println("Joined view")
@@ -97,9 +94,202 @@ func joinView(leader string) {
 	}
 }
 
+//Notify all nodes of impending view change
+func notifyViewChanges(addedNodes map[string]bool, oldNodes []string, changes *map[string]*kvs.Change) error {
+	var wg sync.WaitGroup
+	nodesAccepted := make(map[string]bool)
+	nodesNotified := 0
+
+	//Notify new nodes of view change and init view
+	wg.Add(len(addedNodes))
+	for node := range addedNodes {
+		nodesNotified++
+		v := viewInit{View: *MyView, Changes: *(*changes)[node]}
+		go notifyNewView(&wg, node, v, &nodesAccepted)
+		delete(*changes, node)
+	}
+
+	//Notify existing nodes of view change
+	for _, node := range oldNodes {
+		if !addedNodes[node] && node != MyAddress {
+			nodesNotified++
+			wg.Add(1)
+			go notifyViewChange(&wg, node, &nodesAccepted)
+		}
+	}
+	wg.Wait()
+
+	if len(nodesAccepted) == nodesNotified {
+		return nil
+	}
+	return errors.New("Not all nodes accepted view change")
+}
+
+//Propagate changes to all necessary nodes
+func propagateViewChanges(changes map[string]*kvs.Change) error {
+	var wg sync.WaitGroup
+	changesPropagated := make(map[string]bool)
+
+	//Propagate changes to existing and removed nodes
+	wg.Add(len(changes))
+	for node, c := range changes {
+		propagateChange(&wg, node, *c, &changesPropagated)
+	}
+
+	wg.Wait()
+
+	if len(changesPropagated) == len(changes) {
+		return nil
+	}
+	return errors.New("Not all nodes propagated changes")
+}
+
+//Makes post request to uri with given data, returns true on success
+func makePost(uri string, data interface{}) bool {
+	b, err := json.Marshal(data)
+	if err == nil {
+		res, err := http.Post(uri, "application/json", bytes.NewBuffer(b))
+		return err == nil && res.StatusCode == http.StatusOK
+	}
+	return false
+}
+
+func notifyViewChange(wg *sync.WaitGroup, node string, nodesAccepted *map[string]bool) {
+	defer wg.Done()
+
+	uri := fmt.Sprintf("http://%s:%s/kvs/int/view-change", node, Port)
+	if makePost(uri, *MyView) {
+		(*nodesAccepted)[node] = true
+	}
+}
+
+func notifyNewView(wg *sync.WaitGroup, node string, v viewInit, nodesAccepted *map[string]bool) {
+	defer wg.Done()
+
+	uri := fmt.Sprintf("http://%s:%s/kvs/int/view-change", node, Port)
+	if makePost(uri, v) {
+		(*nodesAccepted)[node] = true
+	}
+}
+
+func propagateChange(wg *sync.WaitGroup, node string, c kvs.Change, changesPropagated *map[string]bool) {
+	defer wg.Done()
+
+}
+
+// //Handle internal reshard post request
+// func reshardHandler(w http.ResponseWriter, r *http.Request) {
+// 	newKeys := unmarshalStruct(r.Body, map[string]string{}).(map[string]string)
+// 	//handle new keys
+// }
+
+// func changesHandler(w http.ResponseWriter, r *http.Request) {
+
+// }
+
+// Handle internal view change propagation post request
+func internalViewChangeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Body != nil {
+		defer r.Body.Close()
+	}
+
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if AmActive {
+		//I am already part of this view
+		v := kvs.View{}
+		err = json.Unmarshal(b, &v)
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		*MyView = v
+		w.WriteHeader(http.StatusOK)
+	} else {
+		//I am a new node
+		v := viewInit{}
+		err = json.Unmarshal(b, &v)
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		*MyView = v.View
+		MyView.UpdateKVS(v.Changes)
+		AmActive = true
+		w.WriteHeader(http.StatusOK)
+
+		log.Println("Joined view")
+	}
+}
+
+//Handle external view change put request, node acts as coordinator
+func viewChangeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Body != nil {
+		defer r.Body.Close()
+	}
+
+	if !AmActive {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	req := struct {
+		View string `json:"view"`
+	}{}
+	err = json.Unmarshal(b, &req)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	nodes := strings.Split(req.View, ",")
+	for i, node := range nodes {
+		nodes[i] = strings.Split(node, ":")[0]
+	}
+
+	//Update my view
+	oldNodes := MyView.Nodes
+	changes, addedNodes := MyView.ChangeView(nodes)
+
+	//Update other's views
+	err = notifyViewChanges(addedNodes, oldNodes, &changes)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Propagate view changes
+	err = propagateViewChanges(changes)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("View updated to", nodes)
+	w.WriteHeader(http.StatusOK)
+	//TODO: build response using get-keys
+}
+
 //Handle internal setup request to join view
 func initHandler(w http.ResponseWriter, r *http.Request) {
-	if AmActive && Setup != nil {
+	if !AmActive && Setup != nil {
 		remoteAddress := strings.Split(r.RemoteAddr, ":")[0]
 		isInView := false
 
@@ -111,11 +301,11 @@ func initHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if isInView {
-			viewToSend := viewChange{View: *MyView, Changes: *Setup.initialChanges[remoteAddress]}
-			bytes, err := json.Marshal(viewToSend)
+			viewToSend := viewInit{View: *MyView, Changes: *Setup.initialChanges[remoteAddress]}
+			b, err := json.Marshal(viewToSend)
 			if err == nil {
 				w.WriteHeader(http.StatusOK)
-				w.Write(bytes)
+				w.Write(b)
 
 				Setup.nodeJoined(remoteAddress)
 			} else {
@@ -125,39 +315,6 @@ func initHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.WriteHeader(http.StatusForbidden)
-}
-
-//Handle internal reshard post request
-func internalViewChangeHandler(w http.ResponseWriter, r *http.Request) {
-	newKeys := unmarshalStruct(r.Body, map[string]string{}).(map[string]string)
-	//handle new keys
-}
-
-//Handle internal view change propagation post request
-func internalViewChangeHandler(w http.ResponseWriter, r *http.Request) {
-	v := unmarshalStruct(r.Body, &viewChange{}).(*viewChange)
-	*MyView = v.View
-	reshards := kvs.UpdateKVS(v.Changes)
-	AmActive = true
-
-	for reshard := range reshards {
-		//go routine
-	}
-}
-
-//Handle external view change put request
-func viewChangeHandler(w http.ResponseWriter, r *http.Request) {
-	req := unmarshalStruct(r.Body, struct {
-		View string `json:"view"`
-	}{}).(struct{ View string })
-
-	nodes := strings.Split(req.View, ",")
-	oldNodes := MyView.Nodes
-	changes := MyView.ChangeView(nodes)
-
-	for node := range oldNodes {
-		//go routine
-	}
 }
 
 func main() {
@@ -181,8 +338,8 @@ func main() {
 
 	//Internal endpoints
 	r.HandleFunc("/kvs/int/init", initHandler).Methods(http.MethodGet)
-	r.HandleFunc("/kvs/int/view-change", initHandler).Methods(http.MethodPost)
-	r.HandleFunc("/kvs/int/reshard", initHandler).Methods(http.MethodPost)
+	r.HandleFunc("/kvs/int/view-change", internalViewChangeHandler).Methods(http.MethodPost)
+	// r.HandleFunc("/kvs/int/reshard", initHandler).Methods(http.MethodPost)
 
 	//External
 	r.HandleFunc("/kvs/view-change", viewChangeHandler).Methods(http.MethodPut)

@@ -35,7 +35,7 @@ type Change struct {
 
 //UpdateKVS updates the KVS to match the view given the changes required
 //Returns the keys that must be resharded
-func UpdateKVS(c Change) map[string]map[int]map[string]string {
+func (v *View) UpdateKVS(c Change) map[string]map[uint64]map[string]string {
 	if c.Removed {
 		//We are being review from the view and must reshard all keys
 		return nil
@@ -51,8 +51,8 @@ func UpdateKVS(c Change) map[string]map[int]map[string]string {
 	}
 }
 
-//ChangeView changes view struct given new state of active nodes. Returns map of changes
-func (v *View) ChangeView(nodes []string) map[string]*Change {
+//ChangeView changes view struct given new state of active nodes. Returns map of changes and map of new nodes
+func (v *View) ChangeView(nodes []string) (map[string]*Change, map[string]bool) {
 	addedNodes, removedNodes := v.calcNodeDiff(nodes)
 	addedTokens := generateTokens(addedNodes)
 	tokens, changes, err := v.mergeTokens(addedTokens, addedNodes, removedNodes)
@@ -65,7 +65,7 @@ func (v *View) ChangeView(nodes []string) map[string]*Change {
 
 	v.Nodes = nodes
 	v.Tokens = tokens
-	return changes
+	return changes, addedNodes
 }
 
 //Calculate the added and removed nodes as differences between the view and a given node list
