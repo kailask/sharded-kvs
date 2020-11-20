@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"math/rand"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -270,25 +271,28 @@ func linearSearch(Tokens []Token, keyPosition uint64, endIndex int) Token {
 
 }
 
-func addKeyValue(key string, value string, res map[string]map[uint64]map[string]string, goalNode Token) {
+func addKeyValue(key string, value string, res map[string]map[string]map[string]string, goalNode Token) {
 	//first check if goalNode's endpoint in res
 	_, exists := res[goalNode.Endpoint]
 
 	if exists {
-		res[goalNode.Endpoint][goalNode.Value][key] = value
+		gNode := strconv.FormatUint(goalNode.Value, 10)
+		res[goalNode.Endpoint][gNode][key] = value
 	} else {
-		resvNode := make(map[uint64]map[string]string)
+		resvNode := make(map[string]map[string]string)
 		reskvs := make(map[string]string)
 		reskvs[key] = value
-		resvNode[goalNode.Value] = reskvs
+		gNode := strconv.FormatUint(goalNode.Value, 10)
+		resvNode[gNode] = reskvs
 	}
 }
 
 //Reshard key value pairs
-func (v *View) Reshard(change Change) map[string]map[uint64]map[string]string {
+//TODO: change all the uint64 to strings
+func (v *View) Reshard(change Change) map[string]map[string]map[string]string {
 	removal := change.Removed //check if node removed
 	tokens := change.Tokens   //get the node's tokens that are changed
-	res := make(map[string]map[uint64]map[string]string)
+	res := make(map[string]map[string]map[string]string)
 
 	/*possible nodes being repartitioned
 	1) node is being removed thus ALL its keys and values are recomputed, we perform binary search per vNode to see the desired destination
@@ -318,6 +322,7 @@ func (v *View) Reshard(change Change) map[string]map[uint64]map[string]string {
 				//if the goal token return is the same we dont update
 				if _, exists := KVS[goalToken.Value]; !exists {
 					addKeyValue(key, value, res, goalToken)
+					delete(KVS[token], key)
 				}
 			}
 		}

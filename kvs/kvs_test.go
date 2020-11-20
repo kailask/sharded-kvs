@@ -2,6 +2,7 @@ package kvs
 
 import (
 	"reflect"
+	"strconv"
 	"testing"
 )
 
@@ -295,6 +296,104 @@ func TestLinearSearch(t *testing.T) {
 	}
 }
 
-func TestUpdateKVS(t *testing.T) {
+func TestReshard(t *testing.T) {
+	//initialize KVS map
+	var KVS = map[uint64]map[string]string{}
+	for i := 0; i < 20; i++ {
+		s := strconv.Itoa(i)
+		num := generateHash("key" + s)
+
+		if 100 <= num && num < 309 {
+			_, exists := KVS[100]
+			if exists {
+				KVS[100]["key"+s] = s
+			} else {
+				kvs := make(map[string]string)
+				KVS[100] = kvs
+				KVS[100]["key"+s] = s
+			}
+		}
+
+		if 490 <= num && num < 854 {
+			_, exists := KVS[490]
+			if exists {
+				KVS[490]["key"+s] = s
+			} else {
+				kvs := make(map[string]string)
+				KVS[490] = kvs
+				KVS[490]["key"+s] = s
+			}
+		}
+
+		if num >= 934 || num < 100 {
+			_, exists := KVS[934]
+			if exists {
+				KVS[934]["key"+s] = s
+			} else {
+				kvs := make(map[string]string)
+				KVS[934] = kvs
+				KVS[934]["key"+s] = s
+			}
+		}
+	}
+
+	// pos := generateHash("Surya")
+	// if pos != 0 {
+	// 	t.Error("\nKVS is:", KVS)
+	// }
+
+	//create the expected map of repartitions
+	expectedMap := map[string]map[string]map[string]string{}
+	for key, value := range KVS {
+		if key == 100 {
+			for k, v := range value {
+				if generateHash(k) >= 223 {
+					_, exists := expectedMap["2"]
+					if exists {
+						expectedMap["2"][strconv.Itoa(223)][k] = v
+					} else {
+						kvs := make(map[string]string)
+						node := make(map[string]map[string]string)
+
+						KVS[934] = kvs
+						KVS[934]["key"+s] = s
+					}
+				}
+			}
+		}
+		if key == 490 {
+			for k, v := range value {
+
+			}
+		}
+		if key == 934 {
+			for k, v := range value {
+
+			}
+		}
+
+	}
+
+	var tests = []struct {
+		name     string
+		v        View
+		change   Change
+		expected map[string]map[string]map[string]string
+	}{
+		{
+			"Reshard test 1, 2 got added",
+			{[]Token{
+				{Endpoint: "1", Value: 100},
+				{Endpoint: "2", Value: 223},
+				{Endpoint: "3", Value: 309},
+				{Endpoint: "1", Value: 490},
+				{Endpoint: "2", Value: 670},
+				{Endpoint: "3", Value: 854},
+				{Endpoint: "1", Value: 934},
+				{Endpoint: "2", Value: 1000},
+			}},
+			Change{Removed: false, []Token{100, 490, 934}},
+		},
+	}
 
 }
