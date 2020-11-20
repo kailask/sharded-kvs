@@ -3,7 +3,6 @@ package kvs
 import (
 	"crypto/md5"
 	"errors"
-	"log"
 	"math/big"
 	"math/rand"
 	"sort"
@@ -90,8 +89,7 @@ func PushKeys(newKeys map[string]map[string]string) error {
 
 //FindToken returns the token corresponding to a given key
 func (v *View) FindToken(key string) Token {
-	log.Println("Using token", v.Tokens[0])
-	return v.Tokens[0] //TODO search for token
+	return v.Tokens[binarySearch(v.Tokens, generateHash(key))]
 }
 
 //ChangeView changes view struct given new state of active nodes. Returns map of changes and map of new nodes
