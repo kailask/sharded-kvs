@@ -208,26 +208,39 @@ func binarySearch(Tokens []Token, target uint64) int {
 
 	index := sort.Search(len(Tokens), func(i int) bool { return Tokens[i].Value >= target })
 	// interval := []uint64{}
-	var endIndex int
+	// var endIndex int
+	var startIndex int
 
 	if index < len(Tokens) && Tokens[index].Value == target {
-		if index < len(Tokens)-1 {
-			// interval = append(interval, target, Tokens[index+1].Value)
-			endIndex = index + 1
-		} else {
-			// interval = append(interval, target, Tokens[0].Value)
-			endIndex = 0
-		}
+		startIndex = index
 	} else {
-		if index > 0 && index < len(Tokens) {
-			// interval = append(interval, Tokens[index-1].Value, Tokens[index].Value)
-			endIndex = index
+		if index == 0 {
+			startIndex = len(Tokens) - 1
 		} else {
-			// interval = append(interval, Tokens[len(Tokens)-1].Value, Tokens[0].Value)
-			endIndex = 0
+			startIndex = index - 1
 		}
 	}
-	return endIndex
+
+	return startIndex
+
+	// if index < len(Tokens) && Tokens[index].Value == target {
+	// 	if index < len(Tokens)-1 {
+	// 		// interval = append(interval, target, Tokens[index+1].Value)
+	// 		endIndex = index + 1
+	// 	} else {
+	// 		// interval = append(interval, target, Tokens[0].Value)
+	// 		endIndex = 0
+	// 	}
+	// } else {
+	// 	if index > 0 && index < len(Tokens) {
+	// 		// interval = append(interval, Tokens[index-1].Value, Tokens[index].Value)
+	// 		endIndex = index
+	// 	} else {
+	// 		// interval = append(interval, Tokens[len(Tokens)-1].Value, Tokens[0].Value)
+	// 		endIndex = 0
+	// 	}
+	// }
+	// return endIndex
 
 }
 
@@ -247,30 +260,31 @@ func generateHash(key string) uint64 {
 	return decimal % MaxHash
 }
 
-//perform a linear scan to see what the new shard is
-//TDOO: broken you gotta fix this
-func linearSearch(Tokens []Token, keyPosition uint64, endIndex int) Token {
-	/*
-		think about the different cases
-		case 1: key is already within interval, meaning key < Tokens[endIndex].Value
-		case 2: key outside interval, meaning key > Tokens[endIndex].value
-			subcase 1: if the endIndex was the last index in the tokens array, then the node is the first node in the array
-			subcase 2: else move forward and check again
-	*/
-	for keyPosition > Tokens[endIndex].Value {
-		//the key is after the last node
-		if endIndex == len(Tokens)-1 {
-			return Tokens[endIndex]
-		}
-		endIndex++
-	}
+// //perform a linear scan to see what the new shard is
+// //TDOO: broken you gotta fix this
+// func linearSearch(Tokens []Token, keyPosition uint64, endIndex int) Token {
+// 	/*
+// 		think about the different cases
+// 		case 1: key is already within interval, meaning key < Tokens[endIndex].Value
+// 		case 2: key outside interval, meaning key > Tokens[endIndex].value
+// 			subcase 1: if the endIndex was the last index in the tokens array, then the node is the first node in the array
+// 			subcase 2: else move forward and check again
+// 	*/
 
-	if endIndex == 0 || endIndex == len(Tokens)-1 {
-		return Tokens[len(Tokens)-1]
-	}
-	return Tokens[endIndex-1]
+// 	//keep moving forward
+// 	for keyPosition > Tokens[endIndex].Value {
+// 		endIndex++
+// 	}
 
-}
+// 	//there are several cases
+// 	if endIndex < len(Tokens) && endIndex > 0 {
+// 		return Tokens[endIndex-1]
+// 	}
+// 	if endIndex == 0 || endIndex == len(Tokens)-1 {
+// 		return Tokens[len(Tokens)-1]
+// 	}
+
+// }
 
 func addKeyValue(key string, value string, res map[string]map[string]map[string]string, goalNode Token) {
 	//first check if goalNode's endpoint in res
@@ -319,12 +333,13 @@ func (v *View) Reshard(change Change) map[string]map[string]map[string]string {
 	*/
 
 	if removal { //case 1: node is removed
-		for vNode, storage := range KVS {
-			endIndex := binarySearch(v.Tokens, vNode)
+		for _, storage := range KVS {
+			// endIndex := binarySearch(v.Tokens, vNode)
 			for key, value := range storage {
 				position := generateHash(key)
-				goalToken := linearSearch(v.Tokens, position, endIndex)
-				addKeyValue(key, value, res, goalToken)
+				startIndex := binarySearch(v.Tokens, position)
+				// goalToken := linearSearch(v.Tokens, position, endIndex)
+				addKeyValue(key, value, res, v.Tokens[startIndex])
 			}
 		}
 	} else if len(KVS) == 0 { //case 2: node was just added
@@ -333,13 +348,13 @@ func (v *View) Reshard(change Change) map[string]map[string]map[string]string {
 		}
 	} else { //case 3: existing node needs to repartition
 		for _, token := range tokens {
-			endIndex := binarySearch(v.Tokens, token)
 			for key, value := range KVS[token] {
 				position := generateHash(key)
-				goalToken := linearSearch(v.Tokens, position, endIndex)
+				startIndex := binarySearch(v.Tokens, position)
+				// goalToken := linearSearch(v.Tokens, position, endIndex)
 				//if the goal token return is the same we dont update
-				if _, exists := KVS[goalToken.Value]; !exists {
-					addKeyValue(key, value, res, goalToken)
+				if _, exists := KVS[v.Tokens[startIndex].Value]; !exists {
+					addKeyValue(key, value, res, v.Tokens[startIndex])
 					delete(KVS[token], key)
 				}
 			}
