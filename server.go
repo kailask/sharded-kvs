@@ -55,7 +55,7 @@ type shardCount struct {
 func (s *setupState) nodeJoined(node string) {
 	s.joinedNodes[node] = true
 	if len(s.joinedNodes) == len(MyView.Nodes)-1 {
-		// MyView.UpdateKVS(*Setup.initialChanges[MyAddress]) TODO: reshard()
+		MyView.Reshard(*Setup.initialChanges[MyAddress])
 		AmActive = true
 		Setup = nil
 		log.Println("Setup complete")
@@ -97,7 +97,7 @@ func joinView(leader string) {
 		}
 
 		*MyView = v.View
-		// MyView.UpdateKVS(v.Changes)TODO: reshard()
+		MyView.Reshard(v.Changes)
 		AmActive = true
 
 		log.Println("Joined view")
@@ -141,9 +141,10 @@ func initHandler(w http.ResponseWriter, r *http.Request) {
 func getKeyCounts() ([]shardCount, error) {
 	var wg sync.WaitGroup
 	wg.Add(len(MyView.Nodes))
+	var mutex = &sync.Mutex{}
 	shards := map[string]int{}
 	for _, node := range MyView.Nodes {
-		go getNodeKeyCount(&wg, node, shards)
+		go getNodeKeyCount(&wg, mutex, node, shards)
 	}
 	wg.Wait()
 
@@ -159,11 +160,13 @@ func getKeyCounts() ([]shardCount, error) {
 }
 
 //Get key count for single node after view change
-func getNodeKeyCount(wg *sync.WaitGroup, node string, shards map[string]int) {
+func getNodeKeyCount(wg *sync.WaitGroup, mutex *sync.Mutex, node string, shards map[string]int) {
 	defer wg.Done()
 
 	if node == MyAddress {
+		mutex.Lock()
 		shards[node] = kvs.KeyCount()
+		mutex.Unlock()
 	} else {
 		uri := fmt.Sprintf("http://%s:%s/kvs/key-count", node, Port)
 		res, err := http.Get(uri)
@@ -184,7 +187,9 @@ func getNodeKeyCount(wg *sync.WaitGroup, node string, shards map[string]int) {
 			if err != nil {
 				return
 			}
+			mutex.Lock()
 			shards[node] = k.KeyCount
+			mutex.Unlock()
 		}
 	}
 }
@@ -194,13 +199,14 @@ func notifyViewChanges(addedNodes map[string]bool, oldNodes []string, changes ma
 	var wg sync.WaitGroup
 	nodesAccepted := make(map[string]bool)
 	nodesNotified := 0
+	var mutex = &sync.Mutex{}
 
 	//Notify new nodes of view change and init view
 	wg.Add(len(addedNodes))
 	for node := range addedNodes {
 		nodesNotified++
 		v := viewInit{View: *MyView, Changes: *changes[node]}
-		go notifyNewView(&wg, node, v, nodesAccepted)
+		go notifyNewView(&wg, mutex, node, v, nodesAccepted)
 		delete(changes, node)
 	}
 
@@ -209,7 +215,7 @@ func notifyViewChanges(addedNodes map[string]bool, oldNodes []string, changes ma
 		if !addedNodes[node] && node != MyAddress {
 			nodesNotified++
 			wg.Add(1)
-			go notifyViewChange(&wg, node, nodesAccepted)
+			go notifyViewChange(&wg, mutex, node, nodesAccepted)
 		}
 	}
 	wg.Wait()
@@ -224,11 +230,12 @@ func notifyViewChanges(addedNodes map[string]bool, oldNodes []string, changes ma
 func propagateViewChanges(changes map[string]*kvs.Change) error {
 	var wg sync.WaitGroup
 	changesPropagated := make(map[string]bool)
+	var mutex = &sync.Mutex{}
 
 	//Propagate changes to existing and removed nodes
 	wg.Add(len(changes))
 	for node, c := range changes {
-		go propagateChange(&wg, node, *c, changesPropagated)
+		go propagateChange(&wg, mutex, node, *c, changesPropagated)
 	}
 
 	wg.Wait()
@@ -250,32 +257,38 @@ func makePost(uri string, data interface{}) bool {
 }
 
 //Routine to notify existing node of updated view
-func notifyViewChange(wg *sync.WaitGroup, node string, nodesAccepted map[string]bool) {
+func notifyViewChange(wg *sync.WaitGroup, mutex *sync.Mutex, node string, nodesAccepted map[string]bool) {
 	defer wg.Done()
 
 	uri := fmt.Sprintf("http://%s:%s/kvs/int/view-change", node, Port)
 	if makePost(uri, *MyView) {
+		mutex.Lock()
 		nodesAccepted[node] = true
+		mutex.Unlock()
 	}
 }
 
 //Routine to notify new node of its initial view state
-func notifyNewView(wg *sync.WaitGroup, node string, v viewInit, nodesAccepted map[string]bool) {
+func notifyNewView(wg *sync.WaitGroup, mutex *sync.Mutex, node string, v viewInit, nodesAccepted map[string]bool) {
 	defer wg.Done()
 
 	uri := fmt.Sprintf("http://%s:%s/kvs/int/view-change", node, Port)
 	if makePost(uri, v) {
+		mutex.Lock()
 		nodesAccepted[node] = true
+		mutex.Unlock()
 	}
 }
 
 //Routine to push reshard to changes to another node
-func pushReshard(wg *sync.WaitGroup, node string, shard map[string]map[string]string, successfulReshards map[string]bool) {
+func pushReshard(wg *sync.WaitGroup, mutex *sync.Mutex, node string, shard map[string]map[string]string, successfulReshards map[string]bool) {
 	defer wg.Done()
 
 	uri := fmt.Sprintf("http://%s:%s/kvs/int/push", node, Port)
 	if makePost(uri, shard) {
+		mutex.Lock()
 		successfulReshards[node] = true
+		mutex.Unlock()
 	}
 }
 
@@ -315,19 +328,23 @@ func pushHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 //Routine to propagate a change to node
-func propagateChange(wg *sync.WaitGroup, node string, c kvs.Change, changesPropagated map[string]bool) {
+func propagateChange(wg *sync.WaitGroup, mutex *sync.Mutex, node string, c kvs.Change, changesPropagated map[string]bool) {
 	defer wg.Done()
 
 	if node != MyAddress {
 		uri := fmt.Sprintf("http://%s:%s/kvs/int/reshard", node, Port)
 		if makePost(uri, c) {
+			mutex.Lock()
 			changesPropagated[node] = true
+			mutex.Unlock()
 		}
 	} else {
-		shards := map[string]map[string]map[string]string{} //TODO: reshard()
+		shards := MyView.Reshard(c)
 		err := executeReshards(shards)
 		if err == nil {
+			mutex.Lock()
 			changesPropagated[node] = true
+			mutex.Unlock()
 		}
 
 		if c.Removed {
@@ -419,11 +436,12 @@ func executeDelete(token kvs.Token, key string) error {
 func executeReshards(shards map[string]map[string]map[string]string) error {
 	var wg sync.WaitGroup
 	wg.Add(len(shards))
+	var mutex = &sync.Mutex{}
 	successfulReshards := make(map[string]bool)
 
 	for node, shard := range shards {
 		//Push resharded keys to respective nodes
-		go pushReshard(&wg, node, shard, successfulReshards)
+		go pushReshard(&wg, mutex, node, shard, successfulReshards)
 	}
 
 	wg.Wait()
@@ -456,7 +474,7 @@ func reshardHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		shards := map[string]map[string]map[string]string{} //TODO: reshard()
+		shards := MyView.Reshard(c)
 		err = executeReshards(shards)
 		if err != nil {
 			log.Println(err)
@@ -511,7 +529,7 @@ func internalViewChangeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		*MyView = v.View
-		// MyView.UpdateKVS(v.Changes)TODO: reshard
+		MyView.Reshard(v.Changes)
 		AmActive = true
 		w.WriteHeader(http.StatusOK)
 
@@ -728,14 +746,14 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 	if token.Endpoint == MyAddress {
 		//Key would be stored locally
 		if v, exists := kvs.Get(token.Value, key); exists {
-			*value = v
+			value = &v
 		}
 	} else {
 		//Key would exist on other node
 		res.Address = token.Endpoint + ":" + Port
 		returnedValue, err := executeGet(token, key)
 		if err == nil {
-			*value = returnedValue
+			value = &returnedValue
 		}
 	}
 
@@ -887,7 +905,7 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 
 //Print state of system
 func debugHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("--------------------------------------")
+	fmt.Println("**************************************")
 	fmt.Printf("Address: %s:%s Active: %v\n", MyAddress, Port, AmActive)
 	fmt.Printf("Nodes: %v\n", MyView.Nodes)
 	fmt.Printf("Tokens: %v\n", MyView.Tokens)
@@ -896,7 +914,7 @@ func debugHandler(w http.ResponseWriter, r *http.Request) {
 	for key, partition := range kvs.KVS {
 		fmt.Printf("%v:\t%v\n", key, partition)
 	}
-	fmt.Println("--------------------------------------")
+	fmt.Println("**************************************")
 
 	if r.Method == http.MethodGet {
 		for _, node := range MyView.Nodes {

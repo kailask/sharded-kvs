@@ -15,8 +15,8 @@ var KVS = map[uint64]map[string]string{}
 
 //Global constants for kvs
 const (
-	NumTokens = 3
-	MaxHash   = 1024
+	NumTokens = 10
+	MaxHash   = 8192
 )
 
 //Token contains an ip address and value in has space
@@ -74,10 +74,10 @@ func KeyCount() int {
 
 //PushKeys tries to update the KVS with the new keys. Returns error if issue
 func PushKeys(newKeys map[string]map[string]string) error {
-	for token := range newKeys {
-		key, _ := strconv.ParseUint(token, 10, 64)
+	for name, shard := range newKeys {
+		key, _ := strconv.ParseUint(name, 10, 64)
 		if partition, exists := KVS[key]; exists {
-			for k, v := range partition {
+			for k, v := range shard {
 				partition[k] = v
 			}
 		} else {
