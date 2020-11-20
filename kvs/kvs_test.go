@@ -257,7 +257,7 @@ func TestBinarySearch(t *testing.T) {
 }
 
 func TestReshard(t *testing.T) {
-	//initialize KVS map for node 1
+	// //initialize KVS map for node 1
 	// for i := 0; i < 20; i++ {
 	// 	s := strconv.Itoa(i)
 	// 	num := generateHash("key" + s)
@@ -301,7 +301,7 @@ func TestReshard(t *testing.T) {
 	// 	t.Error("\nKVS is:", KVS)
 	// }
 
-	//create the expected map of repartitions
+	// //create the expected map of repartitions
 	// expectedMap := make(map[string]map[string]map[string]string)
 	// for key, value := range KVS {
 	// 	if key == 100 {
@@ -375,25 +375,72 @@ func TestReshard(t *testing.T) {
 	// 	}
 	// }
 
-	pos := generateHash("Surya")
-	if pos != 0 {
-		t.Error("\nexpectedMap is:", expectedMap, "\nexpected KVS is:", KVS)
+	// pos = generateHash("Surya")
+	// if pos != 0 {
+	// 	t.Error("\nexpectedMap is:", expectedMap, "\nexpected KVS is:", KVS)
+	// }
+
+	//initialize KVS map for node 2
+	for i := 0; i < 20; i++ {
+		s := strconv.Itoa(i)
+		num := generateHash("key" + s)
+
+		if 223 <= num && num < 309 {
+			_, exists := KVS[223]
+			if exists {
+				KVS[223]["key"+s] = s
+			} else {
+				kvs := make(map[string]string)
+				KVS[223] = kvs
+				KVS[223]["key"+s] = s
+			}
+		}
+
+		if 670 <= num && num < 854 {
+			_, exists := KVS[670]
+			if exists {
+				KVS[670]["key"+s] = s
+			} else {
+				kvs := make(map[string]string)
+				KVS[670] = kvs
+				KVS[670]["key"+s] = s
+			}
+		}
+
+		if num >= 1000 || num < 100 {
+			_, exists := KVS[1000]
+			if exists {
+				KVS[1000]["key"+s] = s
+			} else {
+				kvs := make(map[string]string)
+				KVS[1000] = kvs
+				KVS[1000]["key"+s] = s
+			}
+		}
 	}
 
-	expectedMap2 := make(map[string]map[string]map[string]string)
-	kvs1 := map[string]string{""}
-	node1 := make(map[string]map[string]string)
-	node1["100"] = kvs1
-	kvs2 := make(map[string]string)
-	node2 := make(map[string]map[string]string)
-	node1["490"] = kvs2
-	kvs3 := make(map[string]string)
-	node3 := make(map[string]map[string]string)
-	node1["934"] = kvs3
-	expectedMap2["1"] = node1
-	expectedMap2["1"]["100"] =
-	expectedMap2["1"]["490"] =
-	expectedMap2["1"]["934"] =
+	// pos := generateHash("Surya")
+	// if pos != 0 {
+	// 	t.Error("\nKVS is:", KVS)
+	// }
+
+	expectedMap2 := map[string]map[string]map[string]string{
+		"1": {
+			"490": {
+				"key1":  "1",
+				"key12": "12",
+				"key2":  "2",
+				"key7":  "7",
+				"key8":  "8",
+			},
+			"934": {
+				"key13": "13",
+				"key17": "17",
+				"key18": "18",
+				"key5":  "5",
+			},
+		},
+	}
 
 	//TODO: create another test that removes node 2 from the system
 	var tests = []struct {
@@ -402,23 +449,23 @@ func TestReshard(t *testing.T) {
 		change Change
 		// expectedMap 	map[string]map[string]map[string][string] why is it complaining?
 	}{
-		{
-			"Reshard test 1, 2 got added",
-			View{
-				Tokens: []Token{
-					{Endpoint: "1", Value: 100},
-					{Endpoint: "2", Value: 223},
-					{Endpoint: "3", Value: 309},
-					{Endpoint: "1", Value: 490},
-					{Endpoint: "2", Value: 670},
-					{Endpoint: "3", Value: 854},
-					{Endpoint: "1", Value: 934},
-					{Endpoint: "2", Value: 1000},
-				},
-			},
-			Change{Removed: false, Tokens: []uint64{100, 490, 934}},
-			// nil,
-		},
+		// {
+		// 	"Reshard test 1, 2 got added",
+		// 	View{
+		// 		Tokens: []Token{
+		// 			{Endpoint: "1", Value: 100},
+		// 			{Endpoint: "2", Value: 223},
+		// 			{Endpoint: "3", Value: 309},
+		// 			{Endpoint: "1", Value: 490},
+		// 			{Endpoint: "2", Value: 670},
+		// 			{Endpoint: "3", Value: 854},
+		// 			{Endpoint: "1", Value: 934},
+		// 			{Endpoint: "2", Value: 1000},
+		// 		},
+		// 	},
+		// 	Change{Removed: false, Tokens: []uint64{100, 490, 934}},
+		// 	// nil,
+		// },
 
 		{
 			"Reshard test 2, 2 got removed",
@@ -437,8 +484,8 @@ func TestReshard(t *testing.T) {
 
 	for _, test := range tests {
 		res := test.v.Reshard(test.change)
-		if !reflect.DeepEqual(res, expectedMap) {
-			t.Errorf("%s\n The map was supposed to be %v but got %v\n new KVS is %v\n", test.name, expectedMap, res, KVS)
+		if reflect.DeepEqual(res, expectedMap2) {
+			t.Errorf("%s\n The map was supposed to be %v but got %v\n new KVS is %v\n", test.name, expectedMap2, res, KVS)
 		}
 	}
 
