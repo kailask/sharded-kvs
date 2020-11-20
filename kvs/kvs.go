@@ -232,7 +232,7 @@ func binarySearch(Tokens []Token, target uint64) int {
 
 //genereate the position of a key in the hash space
 func generateHash(key string) uint64 {
-	data := []byte("key")
+	data := []byte(key)
 	// fmt.Println(data)
 
 	num := md5.Sum(data)
@@ -246,7 +246,7 @@ func generateHash(key string) uint64 {
 	return decimal % MaxHash
 }
 
-//perform a linear scan to see what the new shard if position not in interval
+//perform a linear scan to see what the new shard is
 func linearSearch(Tokens []Token, keyPosition uint64, endIndex int) Token {
 	/*
 		think about the different cases
@@ -284,7 +284,8 @@ func addKeyValue(key string, value string, res map[string]map[uint64]map[string]
 	}
 }
 
-func (v *View) UpdateKVS(change Change) map[string]map[uint64]map[string]string {
+//Reshard key value pairs
+func (v *View) Reshard(change Change) map[string]map[uint64]map[string]string {
 	removal := change.Removed //check if node removed
 	tokens := change.Tokens   //get the node's tokens that are changed
 	res := make(map[string]map[uint64]map[string]string)

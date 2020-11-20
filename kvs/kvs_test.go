@@ -1,7 +1,6 @@
 package kvs
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 )
@@ -63,7 +62,7 @@ func TestMergeTokens(t *testing.T) {
 			map[string]bool{},
 			[]Token{{Endpoint: "1", Value: 10}, {Endpoint: "1", Value: 20}, {Endpoint: "1", Value: 30}},
 			[]Token{{Endpoint: "1", Value: 10}, {Endpoint: "1", Value: 20}, {Endpoint: "1", Value: 30}},
-			map[string]*Change{"1": &Change{Tokens: []uint64{10, 20, 30}}},
+			map[string]*Change{"1": {Tokens: []uint64{10, 20, 30}}},
 			false,
 		},
 		{"Remove last node",
@@ -75,7 +74,7 @@ func TestMergeTokens(t *testing.T) {
 			map[string]bool{"1": true},
 			[]Token{},
 			[]Token{},
-			map[string]*Change{"1": &Change{Removed: true}},
+			map[string]*Change{"1": {Removed: true}},
 			false,
 		},
 		{"Add 1 node",
@@ -106,9 +105,9 @@ func TestMergeTokens(t *testing.T) {
 				{Endpoint: "3", Value: 40},
 			},
 			map[string]*Change{
-				"1": &Change{Tokens: []uint64{30}},
-				"2": &Change{Tokens: []uint64{12, 35, 37}},
-				"3": &Change{Tokens: []uint64{10}},
+				"1": {Tokens: []uint64{30}},
+				"2": {Tokens: []uint64{12, 35, 37}},
+				"3": {Tokens: []uint64{10}},
 			},
 			false,
 		},
@@ -140,9 +139,9 @@ func TestMergeTokens(t *testing.T) {
 				{Endpoint: "3", Value: 40},
 			},
 			map[string]*Change{
-				"1": &Change{Tokens: []uint64{30}},
-				"2": &Change{Tokens: []uint64{2, 35, 37}},
-				"3": &Change{Tokens: []uint64{40}},
+				"1": {Tokens: []uint64{30}},
+				"2": {Tokens: []uint64{2, 35, 37}},
+				"3": {Tokens: []uint64{40}},
 			},
 			false,
 		},
@@ -171,9 +170,9 @@ func TestMergeTokens(t *testing.T) {
 				{Endpoint: "1", Value: 30},
 			},
 			map[string]*Change{
-				"1": &Change{Tokens: []uint64{15, 20, 30}},
-				"2": &Change{Tokens: []uint64{12, 17, 25}},
-				"3": &Change{Removed: true},
+				"1": {Tokens: []uint64{15, 20, 30}},
+				"2": {Tokens: []uint64{12, 17, 25}},
+				"3": {Removed: true},
 			},
 			false,
 		},
@@ -206,12 +205,14 @@ func TestMergeTokens(t *testing.T) {
 }
 
 func TestBinarySearch(t *testing.T) {
-	var tests = []structs {
-		Tokens			[]Token
+	var tests = []struct {
+		name            string
+		Tokens          []Token
 		expectedIndices []int
-		target			[]uint64
-	} {
+		target          []uint64
+	}{
 		{
+			"Binary search test 1",
 			[]Token{
 				{Endpoint: "2", Value: 12},
 				{Endpoint: "1", Value: 15},
@@ -224,28 +225,76 @@ func TestBinarySearch(t *testing.T) {
 				1, 0, 0, 4, 4, 0,
 			},
 			[]uint64{
-				12, 11, 39, 20, 24, 30
-			}
-		}
+				12, 11, 39, 20, 24, 30,
+			},
+		},
+		{
+			"Binary search test 2",
+			[]Token{
+				{Endpoint: "1", Value: 5},
+				{Endpoint: "2", Value: 15},
+				{Endpoint: "1", Value: 20},
+				{Endpoint: "2", Value: 50},
+			},
+			[]int{
+				1, 0, 0, 1, 3,
+			},
+			[]uint64{
+				11, 100, 50, 5, 20,
+			},
+		},
 	}
 
 	for _, test := range tests {
-		for i := 0; i < len(target); i++ {
+		for i := 0; i < len(test.target); i++ {
 			endIndex := binarySearch(test.Tokens, test.target[i])
 			if endIndex != test.expectedIndices[i] {
-				t.Errorf("The index was %d when it should have been %d\n", endIndex, test.expectedIndices[i])
+				t.Errorf("%s The index was %d when it should have been %d\n", test.name, endIndex, test.expectedIndices[i])
 			}
 		}
 	}
 }
 
-func TestGenerateHash(t *testing.T) {
-	key1 := "Surya"
-	key2 := "Suresh"
+func TestLinearSearch(t *testing.T) {
+	var tests = []struct {
+		name          string
+		state         []Token
+		keyPosition   []uint64
+		endIndex      []int
+		expectedToken []Token
+	}{
+		{
+			"Linear search test 1",
+			[]Token{
+				{Endpoint: "1", Value: 12},
+				{Endpoint: "2", Value: 15},
+				{Endpoint: "3", Value: 17},
+				{Endpoint: "1", Value: 20},
+				{Endpoint: "2", Value: 25},
+				{Endpoint: "3", Value: 30},
+			},
+			[]uint64{18, 11, 31, 39, 24},
+			[]int{2, 0, 0, 5, 2},
+			[]Token{
+				{Endpoint: "3", Value: 17},
+				{Endpoint: "3", Value: 30},
+				{Endpoint: "3", Value: 30},
+				{Endpoint: "3", Value: 30},
+				{Endpoint: "1", Value: 20},
+			},
+		},
+	}
 
-	val1 := generateHash(key1)
-	val2 := generateHash(key2)
+	for _, test := range tests {
+		for i := 0; i < len(test.keyPosition); i++ {
+			goalToken := linearSearch(test.state, test.keyPosition[i], test.endIndex[i])
+			if !reflect.DeepEqual(goalToken, test.expectedToken[i]) {
+				t.Errorf("%s\n The token was supposed to be %v but got %v\n", test.name, test.expectedToken[i], goalToken)
+			}
+		}
+	}
+}
 
-	fmt.Println(val1, val2)
+func TestUpdateKVS(t *testing.T) {
 
 }
