@@ -185,30 +185,7 @@ func generateTokens(addedNodes map[string]bool) []Token {
 }
 
 func binarySearch(Tokens []Token, target uint64) int {
-	/*possible index values
-	1) index can be an exact match meaning node still exists but takes on a diff range (this node will come from tokens)
-		need to find the node next to target node this will give me a new range (target node, next node)
-		if a key once recomputed is outside this range, we perform a linear scan to see if node next in line > than key's hash
-	2) index not an exact match meaning the node has been removed and thus we find the new node that takes on that key
-		this index will be the index of where the node would have been (target node, next node)
-		if a key once recomputed is outside this range, we perform a linear scan to see if the node next in line > than key's hash
-	*/
-
-	//TODO: also need to handle case when the target node is at the end or beginning
-	/* What happens when the index is at the beginning or end? How do we account for this test case?
-	1) When the returned index is the first value in the array
-		case 1) this index was an exact match, meaning nothing major happens we simply return like normal
-		case 2) this is one of the deleted nodes, meaning the target node needs to be set as the last node in tokens
-	2) When the returned index is the last value in the array
-		case 1) this index was an exact match, meaning its end interval is the first token
-		case 2) this was one of the deleted nodes, meaning the target node is one before
-
-
-	*/
-
 	index := sort.Search(len(Tokens), func(i int) bool { return Tokens[i].Value >= target })
-	// interval := []uint64{}
-	// var endIndex int
 	var startIndex int
 
 	if index < len(Tokens) && Tokens[index].Value == target {
@@ -222,69 +199,19 @@ func binarySearch(Tokens []Token, target uint64) int {
 	}
 
 	return startIndex
-
-	// if index < len(Tokens) && Tokens[index].Value == target {
-	// 	if index < len(Tokens)-1 {
-	// 		// interval = append(interval, target, Tokens[index+1].Value)
-	// 		endIndex = index + 1
-	// 	} else {
-	// 		// interval = append(interval, target, Tokens[0].Value)
-	// 		endIndex = 0
-	// 	}
-	// } else {
-	// 	if index > 0 && index < len(Tokens) {
-	// 		// interval = append(interval, Tokens[index-1].Value, Tokens[index].Value)
-	// 		endIndex = index
-	// 	} else {
-	// 		// interval = append(interval, Tokens[len(Tokens)-1].Value, Tokens[0].Value)
-	// 		endIndex = 0
-	// 	}
-	// }
-	// return endIndex
-
 }
 
 //genereate the position of a key in the hash space
 func generateHash(key string) uint64 {
 	data := []byte(key)
-	// fmt.Println(data)
-
 	num := md5.Sum(data)
-	// fmt.Println(num)
 	slice := num[8:]
-	// fmt.Println(slice)
 	bigInt := new(big.Int)
 	bigInt.SetBytes(slice)
 	decimal := bigInt.Uint64()
 
 	return decimal % MaxHash
 }
-
-// //perform a linear scan to see what the new shard is
-// //TDOO: broken you gotta fix this
-// func linearSearch(Tokens []Token, keyPosition uint64, endIndex int) Token {
-// 	/*
-// 		think about the different cases
-// 		case 1: key is already within interval, meaning key < Tokens[endIndex].Value
-// 		case 2: key outside interval, meaning key > Tokens[endIndex].value
-// 			subcase 1: if the endIndex was the last index in the tokens array, then the node is the first node in the array
-// 			subcase 2: else move forward and check again
-// 	*/
-
-// 	//keep moving forward
-// 	for keyPosition > Tokens[endIndex].Value {
-// 		endIndex++
-// 	}
-
-// 	//there are several cases
-// 	if endIndex < len(Tokens) && endIndex > 0 {
-// 		return Tokens[endIndex-1]
-// 	}
-// 	if endIndex == 0 || endIndex == len(Tokens)-1 {
-// 		return Tokens[len(Tokens)-1]
-// 	}
-
-// }
 
 func addKeyValue(key string, value string, res map[string]map[string]map[string]string, goalNode Token) {
 	//first check if goalNode's endpoint in res
@@ -306,39 +233,19 @@ func addKeyValue(key string, value string, res map[string]map[string]map[string]
 		res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)] = kvs
 		res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)][key] = value
 	}
-
-	// if exists {
-	// 	gNode := strconv.FormatUint(goalNode.Value, 10)
-	// 	res[goalNode.Endpoint][gNode][key] = value
-	// } else {
-	// 	resvNode := make(map[string]map[string]string)
-	// 	reskvs := make(map[string]string)
-	// 	reskvs[key] = value
-	// 	gNode := strconv.FormatUint(goalNode.Value, 10)
-	// 	resvNode[gNode] = reskvs
-	// }
 }
 
 //Reshard key value pairs
-//TODO: change all the uint64 to strings
 func (v *View) Reshard(change Change) map[string]map[string]map[string]string {
 	removal := change.Removed //check if node removed
 	tokens := change.Tokens   //get the node's tokens that are changed
 	res := make(map[string]map[string]map[string]string)
 
-	/*possible nodes being repartitioned
-	1) node is being removed thus ALL its keys and values are recomputed, we perform binary search per vNode to see the desired destination
-	2) node already existing has been updated, thus recompute only some of the keys and values are recomputed, we perfrom binary search per affected vNode
-	3) node has just been added, we need to initialize our map of vnodes to key values and we just listen no repartitioning done here
-	*/
-
 	if removal { //case 1: node is removed
 		for _, storage := range KVS {
-			// endIndex := binarySearch(v.Tokens, vNode)
 			for key, value := range storage {
 				position := generateHash(key)
 				startIndex := binarySearch(v.Tokens, position)
-				// goalToken := linearSearch(v.Tokens, position, endIndex)
 				addKeyValue(key, value, res, v.Tokens[startIndex])
 			}
 		}
@@ -351,8 +258,6 @@ func (v *View) Reshard(change Change) map[string]map[string]map[string]string {
 			for key, value := range KVS[token] {
 				position := generateHash(key)
 				startIndex := binarySearch(v.Tokens, position)
-				// goalToken := linearSearch(v.Tokens, position, endIndex)
-				//if the goal token return is the same we dont update
 				if _, exists := KVS[v.Tokens[startIndex].Value]; !exists {
 					addKeyValue(key, value, res, v.Tokens[startIndex])
 					delete(KVS[token], key)

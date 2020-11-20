@@ -256,46 +256,6 @@ func TestBinarySearch(t *testing.T) {
 	}
 }
 
-// func TestLinearSearch(t *testing.T) {
-// 	var tests = []struct {
-// 		name          string
-// 		state         []Token
-// 		keyPosition   []uint64
-// 		endIndex      []int
-// 		expectedToken []Token
-// 	}{
-// 		{
-// 			"Linear search test 1",
-// 			[]Token{
-// 				{Endpoint: "1", Value: 12},
-// 				{Endpoint: "2", Value: 15},
-// 				{Endpoint: "3", Value: 17},
-// 				{Endpoint: "1", Value: 20},
-// 				{Endpoint: "2", Value: 25},
-// 				{Endpoint: "3", Value: 30},
-// 			},
-// 			[]uint64{18, 11, 31, 39, 24},
-// 			[]int{2, 0, 0, 5, 2},
-// 			[]Token{
-// 				{Endpoint: "3", Value: 17},
-// 				{Endpoint: "3", Value: 30},
-// 				{Endpoint: "3", Value: 30},
-// 				{Endpoint: "3", Value: 30},
-// 				{Endpoint: "1", Value: 20},
-// 			},
-// 		},
-// 	}
-
-// 	for _, test := range tests {
-// 		for i := 0; i < len(test.keyPosition); i++ {
-// 			goalToken := linearSearch(test.state, test.keyPosition[i], test.endIndex[i])
-// 			if !reflect.DeepEqual(goalToken, test.expectedToken[i]) {
-// 				t.Errorf("%s\n The token was supposed to be %v but got %v\n", test.name, test.expectedToken[i], goalToken)
-// 			}
-// 		}
-// 	}
-// }
-
 func TestReshard(t *testing.T) {
 	//initialize KVS map
 	for i := 0; i < 20; i++ {
