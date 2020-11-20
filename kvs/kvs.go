@@ -35,24 +35,6 @@ type Change struct {
 	Tokens  []uint64 `json:"tokens,omitempty"`
 }
 
-//UpdateKVS updates the KVS to match the view given the changes required
-//Returns the keys that must be resharded
-func UpdateKVS(c Change) map[string]map[string]string {
-	if c.Removed {
-		//We are being review from the view and must reshard all keys
-		return nil
-	} else if len(KVS) == 0 {
-		//KVS is empty so we must be joining a new view
-		for _, token := range c.Tokens {
-			KVS[token] = map[string]string{}
-		}
-		return nil
-	} else {
-		//Some keys must be resharded
-		return nil
-	}
-}
-
 //ChangeView changes view struct given new state of active nodes. Returns map of changes
 func (v *View) ChangeView(nodes []string) map[string]*Change {
 	addedNodes, removedNodes := v.calcNodeDiff(nodes)
@@ -302,8 +284,7 @@ func addKeyValue(key string, value string, res map[string]map[uint64]map[string]
 	}
 }
 
-func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]map[uint64]map[string]string {
-	change := changes[ipaddr] //change token for a given node
+func (v *View) UpdateKVS(change Change) map[string]map[uint64]map[string]string {
 	removal := change.Removed //check if node removed
 	tokens := change.Tokens   //get the node's tokens that are changed
 	res := make(map[string]map[uint64]map[string]string)
@@ -324,14 +305,20 @@ func (v *View) repartition(changes map[string]Change, ipaddr string) map[string]
 			}
 		}
 	} else if len(KVS) == 0 { //case 2: node was just added
-		//kailas has already implemented
-
+		for _, token := range change.Tokens {
+			KVS[token] = map[string]string{}
+		}
 	} else { //case 3: existing node needs to repartition
 		for _, token := range tokens {
-			for vNode, storage := range KVS {
-				
+			endIndex := binarySearch(v.Tokens, token)
+			for key, value := range KVS[token] {
+				position := generateHash(key)
+				goalToken := linearSearch(v.Tokens, position, endIndex)
+				//if the goal token return is the same we dont update
+				if _, exists := KVS[goalToken.Value]; !exists {
+					addKeyValue(key, value, res, goalToken)
+				}
 			}
-			endIndex = 
 		}
 	}
 
