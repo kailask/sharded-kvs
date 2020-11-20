@@ -61,7 +61,7 @@ func PushKeys(newKeys map[string]map[string]string) error {
 
 //FindToken returns the token corresponding to a given key
 func (v *View) FindToken(key string) Token {
-	return Token{}
+	return Token{} //TODO search for token
 }
 
 //ChangeView changes view struct given new state of active nodes. Returns map of changes and map of new nodes
