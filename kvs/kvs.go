@@ -1,8 +1,10 @@
 package kvs
 
 import (
+	"crypto/md5"
 	"errors"
 	"log"
+	"math/big"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -238,4 +240,90 @@ func generateTokens(addedNodes map[string]bool) []Token {
 	})
 
 	return tokens
+}
+
+func binarySearch(Tokens []Token, target uint64) int {
+	index := sort.Search(len(Tokens), func(i int) bool { return Tokens[i].Value >= target })
+	var startIndex int
+
+	if index < len(Tokens) && Tokens[index].Value == target {
+		startIndex = index
+	} else {
+		if index == 0 {
+			startIndex = len(Tokens) - 1
+		} else {
+			startIndex = index - 1
+		}
+	}
+
+	return startIndex
+}
+
+//genereate the position of a key in the hash space
+func generateHash(key string) uint64 {
+	data := []byte(key)
+	num := md5.Sum(data)
+	slice := num[8:]
+	bigInt := new(big.Int)
+	bigInt.SetBytes(slice)
+	decimal := bigInt.Uint64()
+
+	return decimal % MaxHash
+}
+
+func addKeyValue(key string, value string, res map[string]map[string]map[string]string, goalNode Token) {
+	//first check if goalNode's endpoint in res
+	_, exists := res[goalNode.Endpoint]
+
+	if exists {
+		_, ex := res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)]
+		if ex {
+			res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)][key] = value
+		} else {
+			kvs := make(map[string]string)
+			res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)] = kvs
+			res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)][key] = value
+		}
+	} else {
+		kvs := make(map[string]string)
+		node := make(map[string]map[string]string)
+		res[goalNode.Endpoint] = node
+		res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)] = kvs
+		res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)][key] = value
+	}
+}
+
+//Reshard key value pairs
+func (v *View) Reshard(change Change) map[string]map[string]map[string]string {
+	removal := change.Removed //check if node removed
+	tokens := change.Tokens   //get the node's tokens that are changed
+	res := make(map[string]map[string]map[string]string)
+
+	if removal { //case 1: node is removed
+		for vNode, storage := range KVS {
+			for key, value := range storage {
+				position := generateHash(key)
+				startIndex := binarySearch(v.Tokens, position)
+				addKeyValue(key, value, res, v.Tokens[startIndex])
+			}
+			delete(KVS, vNode)
+		}
+	} else if len(KVS) == 0 { //case 2: node was just added
+		for _, token := range change.Tokens {
+			KVS[token] = map[string]string{}
+		}
+	} else { //case 3: existing node needs to repartition
+		for _, token := range tokens {
+			for key, value := range KVS[token] {
+				position := generateHash(key)
+				startIndex := binarySearch(v.Tokens, position)
+				if _, exists := KVS[v.Tokens[startIndex].Value]; !exists {
+					addKeyValue(key, value, res, v.Tokens[startIndex])
+					delete(KVS[token], key)
+				}
+			}
+		}
+	}
+
+	return res
 }
