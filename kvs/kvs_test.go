@@ -206,39 +206,37 @@ func TestMergeTokens(t *testing.T) {
 }
 
 func TestBinarySearch(t *testing.T) {
-	tokens1 := []Token{
-		{Endpoint: "2", Value: 12},
-		{Endpoint: "1", Value: 15},
-		{Endpoint: "2", Value: 17},
-		{Endpoint: "1", Value: 20},
-		{Endpoint: "2", Value: 25},
-		{Endpoint: "1", Value: 30},
-	}
-
-	target := []int{12, 11, 39, 20, 24, 30}
-	expectedIndices := []int{
-		1, 0, 0, 4, 4, 0,
-	}
-
-	expectedIntervals := [][]int{
-		{12, 15},
-		{30, 12},
-		{30, 12},
-		{20, 25},
-		{20, 25},
-		{30, 12},
-	}
-
-	for i := 0; i < len(target); i++ {
-		endIndex, interval := binarySearch(tokens1, target[i])
-		if endIndex != expectedIndices[i] {
-			t.Errorf("The index was %d when it should have been %d\n", endIndex, expectedIndices[i])
-		}
-		if !reflect.DeepEqual(interval, expectedIntervals[i]) {
-			t.Errorf("The interval was %v when it should have been %v\n", interval, expectedIntervals[i])
+	var tests = []structs {
+		Tokens			[]Token
+		expectedIndices []int
+		target			[]uint64
+	} {
+		{
+			[]Token{
+				{Endpoint: "2", Value: 12},
+				{Endpoint: "1", Value: 15},
+				{Endpoint: "2", Value: 17},
+				{Endpoint: "1", Value: 20},
+				{Endpoint: "2", Value: 25},
+				{Endpoint: "1", Value: 30},
+			},
+			[]int{
+				1, 0, 0, 4, 4, 0,
+			},
+			[]uint64{
+				12, 11, 39, 20, 24, 30
+			}
 		}
 	}
 
+	for _, test := range tests {
+		for i := 0; i < len(target); i++ {
+			endIndex := binarySearch(test.Tokens, test.target[i])
+			if endIndex != test.expectedIndices[i] {
+				t.Errorf("The index was %d when it should have been %d\n", endIndex, test.expectedIndices[i])
+			}
+		}
+	}
 }
 
 func TestGenerateHash(t *testing.T) {
