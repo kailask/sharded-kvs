@@ -1,8 +1,10 @@
 package kvs
 
 import (
+	"errors"
 	"math/rand"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -31,6 +33,30 @@ type View struct {
 type Change struct {
 	Removed bool     `json:"removed"`
 	Tokens  []uint64 `json:"tokens,omitempty"`
+}
+
+//KeyCount returns the current key count of the KVS
+func KeyCount() int {
+	keyCount := 0
+	for _, token := range KVS {
+		keyCount += len(token)
+	}
+	return keyCount
+}
+
+//PushKeys tries to update the KVS with the new keys. Returns error if issue
+func PushKeys(newKeys map[string]map[string]string) error {
+	for token := range newKeys {
+		key, _ := strconv.ParseUint(token, 10, 64)
+		if store, exists := KVS[key]; exists {
+			for k, v := range store {
+				store[k] = v
+			}
+		} else {
+			return errors.New("Invalid token")
+		}
+	}
+	return nil
 }
 
 //UpdateKVS updates the KVS to match the view given the changes required

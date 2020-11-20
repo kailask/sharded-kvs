@@ -184,7 +184,7 @@ func propagateChange(wg *sync.WaitGroup, node string, c kvs.Change, changesPropa
 			changesPropagated[node] = true
 		}
 	} else {
-		shards := map[string]map[uint64]map[string]string{} //TODO: reshard()
+		shards := map[string]map[string]map[string]string{} //TODO: reshard()
 		err := executeReshards(shards)
 		if err == nil {
 			changesPropagated[node] = true
@@ -198,14 +198,19 @@ func propagateChange(wg *sync.WaitGroup, node string, c kvs.Change, changesPropa
 }
 
 //Execute all reshards from this node
-func executeReshards(shards map[string]map[uint64]map[string]string) error {
+func executeReshards(shards map[string]map[string]map[string]string) error {
 	var wg sync.WaitGroup
 	wg.Add(len(shards))
 	successfulReshards := make(map[string]bool)
 
 	for node, shard := range shards {
-		go func(wg *sync.WaitGroup, node string, shard map[uint64]map[string]string, successfulReshards map[string]bool) {
+		go func(wg *sync.WaitGroup, node string, shard map[string]map[string]string, successfulReshards map[string]bool) {
+			defer wg.Done()
 
+			uri := fmt.Sprintf("http://%s:%s/kvs/int/push", node, Port)
+			if makePost(uri, shard) {
+				successfulReshards[node] = true
+			}
 		}(&wg, node, shard, successfulReshards)
 	}
 
@@ -239,7 +244,7 @@ func reshardHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		shards := map[string]map[uint64]map[string]string{} //TODO: reshard()
+		shards := map[string]map[string]map[string]string{} //TODO: reshard()
 		err = executeReshards(shards)
 		if err != nil {
 			log.Println(err)
@@ -253,7 +258,7 @@ func reshardHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("Left view")
 		}
 	} else {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusForbidden)
 	}
 }
 
@@ -298,6 +303,40 @@ func internalViewChangeHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 
 		log.Println("Joined view")
+	}
+}
+
+//Handle keys pushed to node during reshard
+func pushHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Body != nil {
+		defer r.Body.Close()
+	}
+
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if AmActive {
+		newKeys := make(map[string]map[string]string)
+		err = json.Unmarshal(b, &newKeys)
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		err = kvs.PushKeys(newKeys)
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	} else {
+		w.WriteHeader(http.StatusForbidden)
 	}
 }
 
@@ -352,9 +391,13 @@ func viewChangeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("View updated to", nodes)
+	// for node := range nodes {
+
+	// }
+	//TODO: get reponse with key counts
 	w.WriteHeader(http.StatusOK)
-	//TODO: build response using get-keys
+
+	log.Println("View updated to", nodes)
 }
 
 //Handle internal setup request to join view
@@ -387,6 +430,26 @@ func initHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusForbidden)
 }
 
+//Handle external get requests for node's key count
+func keyCountHandler(w http.ResponseWriter, r *http.Request) {
+	if AmActive {
+		b, err := json.Marshal(struct {
+			Message  string `json:"message"`
+			KeyCount int    `json:"key-count"`
+		}{Message: "Key count retrieved successfully", KeyCount: kvs.KeyCount()})
+
+		if err == nil {
+			w.WriteHeader(http.StatusOK)
+			w.Write(b)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+
+	} else {
+		w.WriteHeader(http.StatusForbidden)
+	}
+}
+
 func main() {
 	r := mux.NewRouter()
 	r.Use(loggingMiddleware)
@@ -410,9 +473,11 @@ func main() {
 	r.HandleFunc("/kvs/int/init", initHandler).Methods(http.MethodGet)
 	r.HandleFunc("/kvs/int/view-change", internalViewChangeHandler).Methods(http.MethodPost)
 	r.HandleFunc("/kvs/int/reshard", reshardHandler).Methods(http.MethodPost)
+	r.HandleFunc("/kvs/int/push", pushHandler).Methods(http.MethodPost)
 
-	//External
+	//External endpoints
 	r.HandleFunc("/kvs/view-change", viewChangeHandler).Methods(http.MethodPut)
+	r.HandleFunc("/kvs/key-count", keyCountHandler).Methods(http.MethodGet)
 	// r.HandleFunc("/kvs/updateView", updateViewHandler.Mathods("PUT"))
 	// r.HandleFunc("/kvs/hello", testHandler)
 
