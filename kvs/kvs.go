@@ -242,12 +242,13 @@ func (v *View) Reshard(change Change) map[string]map[string]map[string]string {
 	res := make(map[string]map[string]map[string]string)
 
 	if removal { //case 1: node is removed
-		for _, storage := range KVS {
+		for vNode, storage := range KVS {
 			for key, value := range storage {
 				position := generateHash(key)
 				startIndex := binarySearch(v.Tokens, position)
 				addKeyValue(key, value, res, v.Tokens[startIndex])
 			}
+			delete(KVS, vNode)
 		}
 	} else if len(KVS) == 0 { //case 2: node was just added
 		for _, token := range change.Tokens {
