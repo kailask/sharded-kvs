@@ -151,7 +151,7 @@ func getKeyCounts() ([]shardCount, error) {
 	if len(shards) == len(MyView.Nodes) {
 		shardArray := make([]shardCount, 0, len(MyView.Nodes))
 		for address, count := range shards {
-			shardArray = append(shardArray, shardCount{Address: address, KeyCount: count})
+			shardArray = append(shardArray, shardCount{Address: address + ":" + Port, KeyCount: count})
 		}
 		return shardArray, nil
 	}

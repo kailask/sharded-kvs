@@ -1,7 +1,10 @@
 #VS Code
 .devcontainer
 .vscode
+
+#Testing
 *.sh
+*.py
 *.txt
 *.text
 testing.go
