@@ -10,8 +10,17 @@ import (
 	"time"
 )
 
-//KVS maps token values to k:v maps
-var KVS = map[uint64]map[string]string{}
+//KVS is a string:string key value store
+type KVS map[string]string
+
+//PartitionedKVS is a string:string kvs divided into a map of partitions
+type PartitionedKVS map[uint64]KVS
+
+//RemappedKVS is a PartitionedKVS mapped to different nodes and with the tokens converted to strings
+type RemappedKVS map[string]map[string]KVS
+
+//MyKVS maps token values to k:v maps
+var MyKVS = PartitionedKVS{}
 
 //Global constants for kvs
 const (
@@ -39,13 +48,13 @@ type Change struct {
 
 //Get returns the value given the key and token
 func Get(token uint64, key string) (string, bool) {
-	value, exists := KVS[token][key]
+	value, exists := MyKVS[token][key]
 	return value, exists
 }
 
 //Set sets the key and value at the given token. Returns if updated or error
 func Set(token uint64, key string, value string) (bool, error) {
-	if partition, exists := KVS[token]; exists {
+	if partition, exists := MyKVS[token]; exists {
 		_, updated := partition[key]
 		partition[key] = value
 		return updated, nil
@@ -55,9 +64,9 @@ func Set(token uint64, key string, value string) (bool, error) {
 
 //Delete deletes the key in the given token
 func Delete(token uint64, key string) error {
-	_, exists := KVS[token][key]
+	_, exists := MyKVS[token][key]
 	if exists {
-		delete(KVS[token], key)
+		delete(MyKVS[token], key)
 		return nil
 	}
 	return errors.New("Key does not exist")
@@ -66,17 +75,17 @@ func Delete(token uint64, key string) error {
 //KeyCount returns the current key count of the KVS
 func KeyCount() int {
 	keyCount := 0
-	for _, token := range KVS {
+	for _, token := range MyKVS {
 		keyCount += len(token)
 	}
 	return keyCount
 }
 
 //PushKeys tries to update the KVS with the new keys. Returns error if issue
-func PushKeys(newKeys map[string]map[string]string) error {
+func PushKeys(newKeys map[string]KVS) error {
 	for name, shard := range newKeys {
 		key, _ := strconv.ParseUint(name, 10, 64)
-		if partition, exists := KVS[key]; exists {
+		if partition, exists := MyKVS[key]; exists {
 			for k, v := range shard {
 				partition[k] = v
 			}
@@ -89,7 +98,17 @@ func PushKeys(newKeys map[string]map[string]string) error {
 
 //FindToken returns the token corresponding to a given key
 func (v *View) FindToken(key string) Token {
-	return v.Tokens[v.findTokenIndex(generateHash(key))]
+	hash := generateHash(key)
+	index := sort.Search(len(v.Tokens), func(i int) bool { return v.Tokens[i].Value >= hash })
+	tokenIndex := index - 1
+
+	if index < len(v.Tokens) && v.Tokens[index].Value == hash {
+		tokenIndex = index
+	} else if index == 0 {
+		tokenIndex = len(v.Tokens) - 1
+	}
+
+	return v.Tokens[tokenIndex]
 }
 
 //ChangeView changes view struct given new state of active nodes. Returns map of changes and map of new nodes
@@ -110,32 +129,29 @@ func (v *View) ChangeView(nodes []string) (map[string]*Change, map[string]bool) 
 }
 
 //Reshard key value pairs
-func (v *View) Reshard(change Change) map[string]map[string]map[string]string {
-	removal := change.Removed //check if node removed
-	tokens := change.Tokens   //get the node's tokens that are changed
-	res := make(map[string]map[string]map[string]string)
+func (v *View) Reshard(change Change) RemappedKVS {
+	res := make(RemappedKVS)
 
-	if removal { //case 1: node is removed
-		for vNode, storage := range KVS {
+	if change.Removed { //case 1: node is removed
+		for vNode, storage := range MyKVS {
 			for key, value := range storage {
-				position := generateHash(key)
-				startIndex := v.findTokenIndex(position)
-				addKeyValue(key, value, res, v.Tokens[startIndex])
+				newToken := v.FindToken(key)
+				res.addKeyValue(key, value, newToken)
 			}
-			delete(KVS, vNode)
+			delete(MyKVS, vNode)
 		}
-	} else if len(KVS) == 0 { //case 2: node was just added
+	} else if len(MyKVS) == 0 { //case 2: node was just added
 		for _, token := range change.Tokens {
-			KVS[token] = map[string]string{}
+			MyKVS[token] = make(KVS)
 		}
 	} else { //case 3: existing node needs to repartition
-		for _, token := range tokens {
-			for key, value := range KVS[token] {
-				position := generateHash(key)
-				startIndex := v.findTokenIndex(position)
-				if _, exists := KVS[v.Tokens[startIndex].Value]; !exists {
-					addKeyValue(key, value, res, v.Tokens[startIndex])
-					delete(KVS[token], key)
+		for _, changedToken := range change.Tokens {
+			for key, value := range MyKVS[changedToken] {
+				newToken := v.FindToken(key)
+				//Reshard key only if partition has changed
+				if newToken.Value != changedToken {
+					res.addKeyValue(key, value, newToken)
+					delete(MyKVS[changedToken], key)
 				}
 			}
 		}
@@ -275,23 +291,6 @@ func generateTokens(addedNodes map[string]bool) []Token {
 	return tokens
 }
 
-func (v *View) findTokenIndex(target uint64) int {
-	index := sort.Search(len(v.Tokens), func(i int) bool { return v.Tokens[i].Value >= target })
-	var startIndex int
-
-	if index < len(v.Tokens) && v.Tokens[index].Value == target {
-		startIndex = index
-	} else {
-		if index == 0 {
-			startIndex = len(v.Tokens) - 1
-		} else {
-			startIndex = index - 1
-		}
-	}
-
-	return startIndex
-}
-
 //genereate the position of a key in the hash space
 func generateHash(key string) uint64 {
 	hash := md5.Sum([]byte(key))
@@ -299,25 +298,19 @@ func generateHash(key string) uint64 {
 	return bigInt.Uint64() % MaxHash
 }
 
-func addKeyValue(key string, value string, res map[string]map[string]map[string]string, goalNode Token) {
-	//first check if goalNode's endpoint in res
-	_, exists := res[goalNode.Endpoint]
+func (res RemappedKVS) addKeyValue(key string, value string, goalNode Token) {
+	node := goalNode.Endpoint
 	partition := strconv.FormatUint(goalNode.Value, 10)
 
-	if exists {
-		_, ex := res[goalNode.Endpoint][partition]
-		if ex {
-			res[goalNode.Endpoint][partition][key] = value
-		} else {
-			kvs := make(map[string]string)
-			res[goalNode.Endpoint][partition] = kvs
-			res[goalNode.Endpoint][partition][key] = value
-		}
-	} else {
-		kvs := make(map[string]string)
-		node := make(map[string]map[string]string)
-		res[goalNode.Endpoint] = node
-		res[goalNode.Endpoint][partition] = kvs
-		res[goalNode.Endpoint][partition][key] = value
+	//first check if goalNode's endpoint in res
+	if _, exists := res[node]; !exists {
+		res[node] = make(map[string]KVS)
 	}
+
+	//then check if partition in node remapping
+	if _, exists := res[node][partition]; !exists {
+		res[node][partition] = make(KVS)
+	}
+
+	res[node][partition][key] = value
 }
