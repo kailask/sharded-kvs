@@ -89,7 +89,7 @@ func PushKeys(newKeys map[string]map[string]string) error {
 
 //FindToken returns the token corresponding to a given key
 func (v *View) FindToken(key string) Token {
-	return v.Tokens[binarySearch(v.Tokens, generateHash(key))]
+	return v.Tokens[v.findTokenIndex(generateHash(key))]
 }
 
 //ChangeView changes view struct given new state of active nodes. Returns map of changes and map of new nodes
@@ -107,6 +107,41 @@ func (v *View) ChangeView(nodes []string) (map[string]*Change, map[string]bool) 
 	v.Nodes = nodes
 	v.Tokens = tokens
 	return changes, addedNodes
+}
+
+//Reshard key value pairs
+func (v *View) Reshard(change Change) map[string]map[string]map[string]string {
+	removal := change.Removed //check if node removed
+	tokens := change.Tokens   //get the node's tokens that are changed
+	res := make(map[string]map[string]map[string]string)
+
+	if removal { //case 1: node is removed
+		for vNode, storage := range KVS {
+			for key, value := range storage {
+				position := generateHash(key)
+				startIndex := v.findTokenIndex(position)
+				addKeyValue(key, value, res, v.Tokens[startIndex])
+			}
+			delete(KVS, vNode)
+		}
+	} else if len(KVS) == 0 { //case 2: node was just added
+		for _, token := range change.Tokens {
+			KVS[token] = map[string]string{}
+		}
+	} else { //case 3: existing node needs to repartition
+		for _, token := range tokens {
+			for key, value := range KVS[token] {
+				position := generateHash(key)
+				startIndex := v.findTokenIndex(position)
+				if _, exists := KVS[v.Tokens[startIndex].Value]; !exists {
+					addKeyValue(key, value, res, v.Tokens[startIndex])
+					delete(KVS[token], key)
+				}
+			}
+		}
+	}
+
+	return res
 }
 
 //Calculate the added and removed nodes as differences between the view and a given node list
@@ -240,15 +275,15 @@ func generateTokens(addedNodes map[string]bool) []Token {
 	return tokens
 }
 
-func binarySearch(Tokens []Token, target uint64) int {
-	index := sort.Search(len(Tokens), func(i int) bool { return Tokens[i].Value >= target })
+func (v *View) findTokenIndex(target uint64) int {
+	index := sort.Search(len(v.Tokens), func(i int) bool { return v.Tokens[i].Value >= target })
 	var startIndex int
 
-	if index < len(Tokens) && Tokens[index].Value == target {
+	if index < len(v.Tokens) && v.Tokens[index].Value == target {
 		startIndex = index
 	} else {
 		if index == 0 {
-			startIndex = len(Tokens) - 1
+			startIndex = len(v.Tokens) - 1
 		} else {
 			startIndex = index - 1
 		}
@@ -259,69 +294,30 @@ func binarySearch(Tokens []Token, target uint64) int {
 
 //genereate the position of a key in the hash space
 func generateHash(key string) uint64 {
-	data := []byte(key)
-	num := md5.Sum(data)
-	slice := num[8:]
-	bigInt := new(big.Int)
-	bigInt.SetBytes(slice)
-	decimal := bigInt.Uint64()
-
-	return decimal % MaxHash
+	hash := md5.Sum([]byte(key))
+	bigInt := new(big.Int).SetBytes(hash[8:])
+	return bigInt.Uint64() % MaxHash
 }
 
 func addKeyValue(key string, value string, res map[string]map[string]map[string]string, goalNode Token) {
 	//first check if goalNode's endpoint in res
 	_, exists := res[goalNode.Endpoint]
+	partition := strconv.FormatUint(goalNode.Value, 10)
 
 	if exists {
-		_, ex := res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)]
+		_, ex := res[goalNode.Endpoint][partition]
 		if ex {
-			res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)][key] = value
+			res[goalNode.Endpoint][partition][key] = value
 		} else {
 			kvs := make(map[string]string)
-			res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)] = kvs
-			res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)][key] = value
+			res[goalNode.Endpoint][partition] = kvs
+			res[goalNode.Endpoint][partition][key] = value
 		}
 	} else {
 		kvs := make(map[string]string)
 		node := make(map[string]map[string]string)
 		res[goalNode.Endpoint] = node
-		res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)] = kvs
-		res[goalNode.Endpoint][strconv.FormatUint(goalNode.Value, 10)][key] = value
+		res[goalNode.Endpoint][partition] = kvs
+		res[goalNode.Endpoint][partition][key] = value
 	}
-}
-
-//Reshard key value pairs
-func (v *View) Reshard(change Change) map[string]map[string]map[string]string {
-	removal := change.Removed //check if node removed
-	tokens := change.Tokens   //get the node's tokens that are changed
-	res := make(map[string]map[string]map[string]string)
-
-	if removal { //case 1: node is removed
-		for vNode, storage := range KVS {
-			for key, value := range storage {
-				position := generateHash(key)
-				startIndex := binarySearch(v.Tokens, position)
-				addKeyValue(key, value, res, v.Tokens[startIndex])
-			}
-			delete(KVS, vNode)
-		}
-	} else if len(KVS) == 0 { //case 2: node was just added
-		for _, token := range change.Tokens {
-			KVS[token] = map[string]string{}
-		}
-	} else { //case 3: existing node needs to repartition
-		for _, token := range tokens {
-			for key, value := range KVS[token] {
-				position := generateHash(key)
-				startIndex := binarySearch(v.Tokens, position)
-				if _, exists := KVS[v.Tokens[startIndex].Value]; !exists {
-					addKeyValue(key, value, res, v.Tokens[startIndex])
-					delete(KVS[token], key)
-				}
-			}
-		}
-	}
-
-	return res
 }

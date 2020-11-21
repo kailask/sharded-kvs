@@ -208,20 +208,20 @@ func TestMergeTokens(t *testing.T) {
 func TestBinarySearch(t *testing.T) {
 	var tests = []struct {
 		name            string
-		Tokens          []Token
+		view            View
 		expectedIndices []int
 		target          []uint64
 	}{
 		{
 			"Binary search test 1",
-			[]Token{
+			View{Tokens: []Token{
 				{Endpoint: "2", Value: 12},
 				{Endpoint: "1", Value: 15},
 				{Endpoint: "2", Value: 17},
 				{Endpoint: "1", Value: 20},
 				{Endpoint: "2", Value: 25},
 				{Endpoint: "1", Value: 30},
-			},
+			}},
 			[]int{
 				0, 5, 5, 3, 3, 5,
 			},
@@ -231,12 +231,12 @@ func TestBinarySearch(t *testing.T) {
 		},
 		{
 			"Binary search test 2",
-			[]Token{
+			View{Tokens: []Token{
 				{Endpoint: "1", Value: 5},
 				{Endpoint: "2", Value: 15},
 				{Endpoint: "1", Value: 20},
 				{Endpoint: "2", Value: 50},
-			},
+			}},
 			[]int{
 				0, 3, 3, 0, 2,
 			},
@@ -248,7 +248,7 @@ func TestBinarySearch(t *testing.T) {
 
 	for _, test := range tests {
 		for i := 0; i < len(test.target); i++ {
-			endIndex := binarySearch(test.Tokens, test.target[i])
+			endIndex := test.view.findTokenIndex(test.target[i])
 			if endIndex != test.expectedIndices[i] {
 				t.Errorf("%s The index was %d when it should have been %d\n", test.name, endIndex, test.expectedIndices[i])
 			}
