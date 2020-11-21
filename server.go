@@ -54,7 +54,7 @@ type shardCount struct {
 //Registers node as joined during initial setup and ends setup if all nodes are joined
 func (s *setupState) nodeJoined(node string) {
 	s.joinedNodes[node] = true
-	if len(s.joinedNodes) == len(MyView.Nodes)-1 {
+	if len(s.joinedNodes) == len(MyView.Nodes) {
 		MyView.Reshard(*Setup.initialChanges[MyAddress])
 		AmActive = true
 		Setup = nil
@@ -74,6 +74,7 @@ func coordinateSetup(nodes []string) {
 
 	joinedNodes := make(map[string]bool)
 	Setup = &setupState{initialChanges, joinedNodes}
+	Setup.nodeJoined(MyAddress)
 }
 
 //Try to join the view with the given leader

@@ -15,8 +15,8 @@ var KVS = map[uint64]map[string]string{}
 
 //Global constants for kvs
 const (
-	NumTokens = 10
-	MaxHash   = 8192
+	NumTokens = 200
+	MaxHash   = 1000000
 )
 
 //Token contains an ip address and value in has space
