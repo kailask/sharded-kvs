@@ -54,7 +54,7 @@ type shardCount struct {
 //Registers node as joined during initial setup and ends setup if all nodes are joined
 func (s *setupState) nodeJoined(node string) {
 	s.joinedNodes[node] = true
-	if len(s.joinedNodes) == len(MyView.Nodes)-1 {
+	if len(s.joinedNodes) == len(MyView.Nodes) {
 		MyView.Reshard(*Setup.initialChanges[MyAddress])
 		AmActive = true
 		Setup = nil
@@ -74,6 +74,7 @@ func coordinateSetup(nodes []string) {
 
 	joinedNodes := make(map[string]bool)
 	Setup = &setupState{initialChanges, joinedNodes}
+	Setup.nodeJoined(MyAddress)
 }
 
 //Try to join the view with the given leader
@@ -281,7 +282,7 @@ func notifyNewView(wg *sync.WaitGroup, mutex *sync.Mutex, node string, v viewIni
 }
 
 //Routine to push reshard to changes to another node
-func pushReshard(wg *sync.WaitGroup, mutex *sync.Mutex, node string, shard map[string]map[string]string, successfulReshards map[string]bool) {
+func pushReshard(wg *sync.WaitGroup, mutex *sync.Mutex, node string, shard map[string]kvs.KVS, successfulReshards map[string]bool) {
 	defer wg.Done()
 
 	uri := fmt.Sprintf("http://%s:%s/kvs/int/push", node, Port)
@@ -306,7 +307,7 @@ func pushHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if AmActive {
-		newKeys := make(map[string]map[string]string)
+		newKeys := make(map[string]kvs.KVS)
 		err = json.Unmarshal(b, &newKeys)
 		if err != nil {
 			log.Println(err)
@@ -433,7 +434,7 @@ func executeDelete(token kvs.Token, key string) error {
 }
 
 //Execute all reshards from this node
-func executeReshards(shards map[string]map[string]map[string]string) error {
+func executeReshards(shards kvs.RemappedKVS) error {
 	var wg sync.WaitGroup
 	wg.Add(len(shards))
 	var mutex = &sync.Mutex{}
@@ -911,7 +912,7 @@ func debugHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Tokens: %v\n", MyView.Tokens)
 	fmt.Printf("Keys: %v\n", kvs.KeyCount())
 	fmt.Println("--------------------------------------")
-	for key, partition := range kvs.KVS {
+	for key, partition := range kvs.MyKVS {
 		fmt.Printf("%v:\t%v\n", key, partition)
 	}
 	fmt.Println("**************************************")
