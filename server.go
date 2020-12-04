@@ -957,9 +957,16 @@ func main() {
 	r.HandleFunc("/kvs/int/{token}/{key}", internalSetHandler).Methods(http.MethodPut)
 	r.HandleFunc("/kvs/int/{token}/{key}", internalDeleteHandler).Methods(http.MethodDelete)
 
+	/*TODO: endpoints
+	/kvs/shards - get req shard ids iterate through tokens
+	/kvs/shards/ - get req to a particular shard id, where we would return key count of that shard as well as replicas pertaining to that shar (including original)
+	make sure to wring out gossip and view change asap
+	*/
+
 	//External endpoints
 	r.HandleFunc("/kvs/view-change", viewChangeHandler).Methods(http.MethodPut)
 	r.HandleFunc("/kvs/key-count", keyCountHandler).Methods(http.MethodGet)
+	//only key operations are affected by faults/partitions
 	r.HandleFunc("/kvs/keys/{key}", getHandler).Methods(http.MethodGet)
 	r.HandleFunc("/kvs/keys/{key}", setHandler).Methods(http.MethodPut)
 	r.HandleFunc("/kvs/keys/{key}", deleteHandler).Methods(http.MethodDelete)

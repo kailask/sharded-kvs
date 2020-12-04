@@ -23,10 +23,19 @@ type RemappedKVS map[string]map[string]KVS
 var MyKVS = PartitionedKVS{}
 
 //Global constants for kvs
+/*
+	TODO: possibly change config cause currently good
+*/
 const (
 	NumTokens = 200
 	MaxHash   = 1000000
 )
+
+// //Dummy const to see if the tests work
+// const (
+// 	NumTokens = 2
+// 	MaxHash   = 10000
+// )
 
 //Token contains an ip address and value in has space
 type Token struct {
@@ -236,6 +245,7 @@ func (v *View) mergeTokens(addedTokens []Token, addedNodes map[string]bool, remo
 				lastWasChanged = true
 			} else if !addedNodes[tokens[i-1].Endpoint] {
 				addChange(changes, &tokens[i-1])
+
 			}
 
 			tokens[i] = *aToken
