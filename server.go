@@ -196,26 +196,23 @@ func getNodeKeyCount(wg *sync.WaitGroup, mutex *sync.Mutex, node string, shards 
 }
 
 //Notify all nodes of impending view change
-func notifyViewChanges(addedNodes map[string]bool, oldNodes []string, changes map[string]*kvs.Change) error {
+func notifyViewChanges(addedNodes map[string]bool, allNodes []string, changes map[string]*kvs.Change) error {
 	var wg sync.WaitGroup
 	nodesAccepted := make(map[string]bool)
 	nodesNotified := 0
 	var mutex = &sync.Mutex{}
+	wg.Add(len(allNodes) - 1) //Don't need to notify myself
 
-	//Notify new nodes of view change and init view
-	wg.Add(len(addedNodes))
-	for node := range addedNodes {
-		nodesNotified++
-		v := viewInit{View: *MyView, Changes: *changes[node]}
-		go notifyNewView(&wg, mutex, node, v, nodesAccepted)
-		delete(changes, node)
-	}
-
-	//Notify existing nodes of view change
-	for _, node := range oldNodes {
-		if !addedNodes[node] && node != MyAddress {
+	//Notify nodes of view change
+	for _, node := range allNodes {
+		if addedNodes[node] {
+			//If node is newly added send viewInit instead of just view
 			nodesNotified++
-			wg.Add(1)
+			v := viewInit{View: *MyView, Changes: *changes[node]}
+			go notifyNewView(&wg, mutex, node, v, nodesAccepted)
+			delete(changes, node)
+		} else if node != MyAddress {
+			nodesNotified++
 			go notifyViewChange(&wg, mutex, node, nodesAccepted)
 		}
 	}
@@ -919,9 +916,8 @@ func debugHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodGet {
 		for _, node := range MyView.Nodes {
-			if node != MyAddress && !makePost(fmt.Sprintf("http://%s:%s/kvs/debug", node, Port), struct{}{}) {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
+			if node != MyAddress {
+				makePost(fmt.Sprintf("http://%s:%s/kvs/debug", node, Port), struct{}{})
 			}
 		}
 	}
