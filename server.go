@@ -196,15 +196,15 @@ func getNodeKeyCount(wg *sync.WaitGroup, mutex *sync.Mutex, node string, shards 
 }
 
 //Notify all nodes of impending view change
-func notifyViewChanges(addedNodes map[string]bool, allNodes []string, changes map[string]*kvs.Change) error {
+func notifyViewChanges(addedNodes map[string]bool, changes map[string]*kvs.Change) error {
 	var wg sync.WaitGroup
 	nodesAccepted := make(map[string]bool)
 	nodesNotified := 0
 	var mutex = &sync.Mutex{}
-	wg.Add(len(allNodes) - 1) //Don't need to notify myself
+	wg.Add(len(MyView.Nodes) - 1) //Don't need to notify myself
 
 	//Notify nodes of view change
-	for _, node := range allNodes {
+	for _, node := range MyView.Nodes {
 		if addedNodes[node] {
 			//If node is newly added send viewInit instead of just view
 			nodesNotified++
@@ -660,11 +660,10 @@ func viewChangeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Update my view
-	oldNodes := MyView.Nodes
 	changes, addedNodes := MyView.ChangeView(nodes)
 
 	//Update other's views
-	err = notifyViewChanges(addedNodes, oldNodes, changes)
+	err = notifyViewChanges(addedNodes, changes)
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -952,12 +951,6 @@ func main() {
 	r.HandleFunc("/kvs/int/{token}/{key}", internalGetHandler).Methods(http.MethodGet)
 	r.HandleFunc("/kvs/int/{token}/{key}", internalSetHandler).Methods(http.MethodPut)
 	r.HandleFunc("/kvs/int/{token}/{key}", internalDeleteHandler).Methods(http.MethodDelete)
-
-	/*TODO: endpoints
-	/kvs/shards - get req shard ids iterate through tokens
-	/kvs/shards/ - get req to a particular shard id, where we would return key count of that shard as well as replicas pertaining to that shar (including original)
-	make sure to wring out gossip and view change asap
-	*/
 
 	//External endpoints
 	r.HandleFunc("/kvs/view-change", viewChangeHandler).Methods(http.MethodPut)
