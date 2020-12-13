@@ -284,6 +284,48 @@ func TestFindToken(t *testing.T) {
 	}
 }
 
+func TestCreateShardList(t *testing.T) {
+	testCases := []struct {
+		desc               string
+		view               View
+		nodes              []string
+		r                  int
+		expectedShardsList map[uint64][]string
+	}{
+		{
+			"test 1",
+			View{
+				Nodes: []string{
+					"1", "2", "3", "4", "5", "6",
+				},
+				ShardsList: map[uint64][]string{
+					37: {
+						"1", "2", "3",
+					},
+					69: {
+						"4", "5", "6",
+					},
+				},
+			},
+			[]string{"1", "4", "5", "7"},
+			2,
+			map[uint64][]string{
+				69: {
+					"1", "4", "5", "6",
+				},
+			},
+		},
+	}
+	for _, tC := range testCases {
+		t.Run(tC.desc, func(t *testing.T) {
+			actual := tC.view.CreateShardList(tC.nodes, tC.r)
+			if reflect.DeepEqual(tC.expectedShardsList, actual) {
+				t.Errorf("%s Shards list should be %v, got %v\n", tC.desc, tC.expectedShardsList, actual)
+			}
+		})
+	}
+}
+
 func TestReshard(t *testing.T) {
 	var testCases = []struct {
 		desc              string

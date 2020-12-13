@@ -1,8 +1,10 @@
 package kvs
 
 import (
+	"container/heap"
 	"crypto/md5"
 	"errors"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"sort"
@@ -36,8 +38,9 @@ type Token struct {
 
 //View contains list of current nodes and their sorted tokens
 type View struct {
-	Nodes  []string `json:"nodes"`
-	Tokens []Token  `json:"tokens"`
+	Nodes      []string            `json:"nodes"`
+	Tokens     []Token             `json:"tokens"`
+	ShardsList map[uint64][]string `json:"shardslist"`
 }
 
 //Change is the changes to a single node during a view change
@@ -109,6 +112,84 @@ func (v *View) FindToken(key string) Token {
 	}
 
 	return v.Tokens[tokenIndex]
+}
+
+//BuildHeap builds a heap
+func (v *View) BuildHeap(storage map[string]bool, maxHeap PriorityQueue, r int) {
+	i := 0
+	for shard, endpoints := range v.ShardsList {
+		count := 1
+		sameEndpoints := []string{}
+		for _, endpoint := range endpoints {
+			if _, ok := storage[endpoint]; ok {
+				if count > r {
+					// movedEndpoints = append(movedEndpoints, endpoint)
+				} else {
+					sameEndpoints = append(sameEndpoints, endpoint)
+					count++
+				}
+				storage[endpoint] = false
+			} else {
+				//node has been removed
+				// removedEndpoints = append(removedEndpoints, endpoint)
+			}
+		}
+		maxHeap[i] = &Item{
+			Nodes:    sameEndpoints,
+			Shard:    shard,
+			Priority: count,
+			Index:    i,
+		}
+		i++
+	}
+	heap.Init(&maxHeap)
+
+}
+
+//CreateShardList creates a new shard list given a new view. Returns the new shard list for a view and potentially changes as well.
+func (v *View) CreateShardList(nodes []string, r int) map[uint64][]string {
+	//map to store the new view and allows for constant lookup
+	storage := map[string]bool{}
+	for _, node := range nodes {
+		storage[node] = true
+	}
+
+	var prevReplFactor int
+	for _, v := range v.ShardsList {
+		prevReplFactor = len(v)
+		break
+	}
+
+	prevNumShards := len(v.ShardsList)
+	newNumShards := len(nodes) / r
+	fmt.Println(prevNumShards, newNumShards, prevReplFactor)
+
+	//build heap
+	maxHeap := make(PriorityQueue, prevNumShards)
+	v.BuildHeap(storage, maxHeap, r)
+
+	//pop off heap and construct new shards list
+	res := make(map[uint64][]string)
+	// Take the items out; they arrive in decreasing priority order. Take out items and keep track of how many shards are still in the heap
+	count := 0
+	for maxHeap.Len() > 0 && count < newNumShards {
+		item := heap.Pop(&maxHeap).(*Item)
+		fmt.Printf("Shard is %d endpoints are %v\n", item.Shard, item.Nodes)
+		res[item.Shard] = item.Nodes
+		count++
+	}
+
+	return res
+
+	//add new shards if newNumShards < prevNumShards
+
+	//place nodes into shards with fewer than r amount of replicas
+
+	//think about how to get the changes for the nodes
+	/*
+		for now lets just have added, removed, changed
+	*/
+	// return nil
 }
 
 //ChangeView changes view struct given new state of active nodes. Returns map of changes and map of new nodes
