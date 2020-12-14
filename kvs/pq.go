@@ -22,7 +22,11 @@ func (pq PriorityQueue) Len() int { return len(pq) }
 //Less function
 func (pq PriorityQueue) Less(i, j int) bool {
 	// We want Pop to give us the highest, not lowest, priority so we use greater than here.
-	return pq[i].Priority > pq[j].Priority
+	if pq[i].Priority != pq[j].Priority {
+		return pq[i].Priority > pq[j].Priority
+	}
+	return pq[i].Shard > pq[j].Shard
+
 }
 
 //Swap function

@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"crypto/md5"
 	"errors"
-	"fmt"
 	"math/big"
 	"math/rand"
 	"sort"
@@ -115,23 +114,21 @@ func (v *View) FindToken(key string) Token {
 }
 
 //BuildHeap builds a heap
-func (v *View) BuildHeap(storage map[string]bool, maxHeap PriorityQueue, r int) {
+func (v *View) BuildHeap(storage map[string]bool, maxHeap PriorityQueue, r int) []string {
 	i := 0
+	movedEndpoints := []string{}
 	for shard, endpoints := range v.ShardsList {
 		count := 1
 		sameEndpoints := []string{}
 		for _, endpoint := range endpoints {
 			if _, ok := storage[endpoint]; ok {
 				if count > r {
-					// movedEndpoints = append(movedEndpoints, endpoint)
+					movedEndpoints = append(movedEndpoints, endpoint)
 				} else {
 					sameEndpoints = append(sameEndpoints, endpoint)
 					count++
 				}
 				storage[endpoint] = false
-			} else {
-				//node has been removed
-				// removedEndpoints = append(removedEndpoints, endpoint)
 			}
 		}
 		maxHeap[i] = &Item{
@@ -144,16 +141,31 @@ func (v *View) BuildHeap(storage map[string]bool, maxHeap PriorityQueue, r int) 
 	}
 	heap.Init(&maxHeap)
 
+	return movedEndpoints
+
+}
+
+//PlaceNode into an available shard
+func (v *View) PlaceNode(movedNodes []string, shardsList map[uint64][]string, r int) {
+	pointer := 0
+
+	for shard := range shardsList {
+		for len(shardsList[shard]) < r {
+			shardsList[shard] = append(shardsList[shard], movedNodes[pointer])
+			pointer++
+		}
+	}
 }
 
 //CreateShardList creates a new shard list given a new view. Returns the new shard list for a view and potentially changes as well.
-func (v *View) CreateShardList(nodes []string, r int) map[uint64][]string {
+func (v *View) CreateShardList(nodes []string, r int) (map[uint64][]string, []uint64, []uint64, []uint64) {
 	//map to store the new view and allows for constant lookup
 	storage := map[string]bool{}
 	for _, node := range nodes {
 		storage[node] = true
 	}
 
+	//get the prev repl factor, wonder if theres a better way to solve this
 	var prevReplFactor int
 	for _, v := range v.ShardsList {
 		prevReplFactor = len(v)
@@ -162,34 +174,61 @@ func (v *View) CreateShardList(nodes []string, r int) map[uint64][]string {
 
 	prevNumShards := len(v.ShardsList)
 	newNumShards := len(nodes) / r
-	fmt.Println(prevNumShards, newNumShards, prevReplFactor)
 
-	//build heap
+	//build heap and get all the nodes that need to be moved around
 	maxHeap := make(PriorityQueue, prevNumShards)
-	v.BuildHeap(storage, maxHeap, r)
+	movedNodes := v.BuildHeap(storage, maxHeap, r)
 
 	//pop off heap and construct new shards list
-	res := make(map[uint64][]string)
 	// Take the items out; they arrive in decreasing priority order. Take out items and keep track of how many shards are still in the heap
+	res := make(map[uint64][]string)
+	modifiedShards := []uint64{}
 	count := 0
 	for maxHeap.Len() > 0 && count < newNumShards {
 		item := heap.Pop(&maxHeap).(*Item)
-		fmt.Printf("Shard is %d endpoints are %v\n", item.Shard, item.Nodes)
+		if len(item.Nodes) != prevReplFactor || prevReplFactor != r {
+			modifiedShards = append(modifiedShards, item.Shard)
+		}
 		res[item.Shard] = item.Nodes
 		count++
 	}
 
-	return res
+	//add new shards if newNumShards > prevNumShards
+	count = 0
+	addedShards := []uint64{}
 
-	//add new shards if newNumShards < prevNumShards
+	//change random back after testing
+	// random := rand.New(rand.NewSource(time.Now().UnixNano()))
+	random := rand.New(rand.NewSource(1))
+	for count < newNumShards-prevNumShards {
+		shardID := (random.Uint64() % MaxHash)
+		res[shardID] = []string{}
+		addedShards = append(addedShards, shardID)
+		count++
+	}
+
+	//remove shards if newNumShards < prevNumShards
+	removedShards := []uint64{}
+	for maxHeap.Len() > 0 {
+		item := heap.Pop(&maxHeap).(*Item)
+		removedShards = append(removedShards, item.Shard)
+		modifiedShards = append(modifiedShards, item.Shard)
+		for _, endpoint := range item.Nodes {
+			movedNodes = append(movedNodes, endpoint)
+		}
+	}
+
+	//make sure to add the new nodes to movedNodes as well
+	for key, val := range storage {
+		if val {
+			movedNodes = append(movedNodes, key)
+		}
+	}
 
 	//place nodes into shards with fewer than r amount of replicas
+	v.PlaceNode(movedNodes, res, r)
 
-	//think about how to get the changes for the nodes
-	/*
-		for now lets just have added, removed, changed
-	*/
-	// return nil
+	return res, addedShards, removedShards, modifiedShards
 }
 
 //ChangeView changes view struct given new state of active nodes. Returns map of changes and map of new nodes

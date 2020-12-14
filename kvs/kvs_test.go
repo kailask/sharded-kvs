@@ -2,6 +2,7 @@ package kvs
 
 import (
 	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -286,14 +287,17 @@ func TestFindToken(t *testing.T) {
 
 func TestCreateShardList(t *testing.T) {
 	testCases := []struct {
-		desc               string
-		view               View
-		nodes              []string
-		r                  int
-		expectedShardsList map[uint64][]string
+		desc                   string
+		view                   View
+		nodes                  []string
+		r                      int
+		expectedShardsList     map[uint64][]string
+		expectedShardsRemoved  []uint64
+		expectedShardsAdded    []uint64
+		expectedShardsModified []uint64
 	}{
 		{
-			"test 1",
+			"test 1 shard 69 keeps both its nodes",
 			View{
 				Nodes: []string{
 					"1", "2", "3", "4", "5", "6",
@@ -310,17 +314,144 @@ func TestCreateShardList(t *testing.T) {
 			[]string{"1", "4", "5", "7"},
 			2,
 			map[uint64][]string{
+				37: {
+					"1", "7",
+				},
 				69: {
-					"1", "4", "5", "6",
+					"4", "5",
 				},
 			},
+			[]uint64{},
+			[]uint64{},
+			[]uint64{37, 69},
+		},
+		{
+			"test 2 shard 37 is the only one left",
+			View{
+				Nodes: []string{
+					"1", "2", "3", "4", "5", "6",
+				},
+				ShardsList: map[uint64][]string{
+					37: {
+						"1",
+					},
+					69: {
+						"2",
+					},
+					72: {
+						"3",
+					},
+					83: {
+						"4",
+					},
+					95: {
+						"5",
+					},
+					101: {
+						"6",
+					},
+				},
+			},
+			[]string{"1", "4", "5", "7"},
+			4,
+			map[uint64][]string{
+				95: {
+					"1", "4", "5", "7",
+				},
+			},
+			[]uint64{37, 69, 72, 83, 101},
+			[]uint64{},
+			[]uint64{37, 69, 72, 83, 95, 101},
+		},
+		{
+			"test 3 to see if new shards are created during view change",
+			View{
+				Nodes: []string{
+					"1", "2", "3", "4", "5", "6",
+				},
+				ShardsList: map[uint64][]string{
+					54: {
+						"1", "2", "3", "4", "5", "6",
+					},
+				},
+			},
+			[]string{
+				"1", "2", "5", "6", "7", "8",
+			},
+			2,
+			map[uint64][]string{
+				54: {
+					"1", "2",
+				},
+				779410: {
+					"5", "6",
+				},
+				153551: {
+					"7", "8",
+				},
+			},
+			[]uint64{},
+			[]uint64{153551, 779410},
+			[]uint64{54},
+		},
+		{
+			"test 4 the most complicated test I could come up with",
+			View{
+				Nodes: []string{
+					"1", "2", "3", "4", "5", "6",
+				},
+				ShardsList: map[uint64][]string{
+					54: {
+						"1", "6",
+					},
+					23: {
+						"2", "4",
+					},
+					79: {
+						"5", "3",
+					},
+				},
+			},
+			[]string{
+				"2", "4", "9", "11",
+			},
+			1,
+			map[uint64][]string{
+				23: {
+					"2",
+				},
+				54: {
+					"4",
+				},
+				79: {
+					"9",
+				},
+				779410: {
+					"11",
+				},
+			},
+			[]uint64{},
+			[]uint64{779410},
+			[]uint64{23, 54, 79},
 		},
 	}
 	for _, tC := range testCases {
 		t.Run(tC.desc, func(t *testing.T) {
-			actual := tC.view.CreateShardList(tC.nodes, tC.r)
-			if reflect.DeepEqual(tC.expectedShardsList, actual) {
-				t.Errorf("%s Shards list should be %v, got %v\n", tC.desc, tC.expectedShardsList, actual)
+			actualShardsList, added, removed, modified := tC.view.CreateShardList(tC.nodes, tC.r)
+			sort.SliceStable(added, func(i, j int) bool { return added[i] < added[j] })
+			sort.SliceStable(removed, func(i, j int) bool { return removed[i] < removed[j] })
+			sort.SliceStable(modified, func(i, j int) bool { return modified[i] < modified[j] })
+			if !reflect.DeepEqual(tC.expectedShardsList, actualShardsList) {
+				t.Errorf("%s Shards list should be %v, got %v\n", tC.desc, tC.expectedShardsList, actualShardsList)
+			}
+			if !reflect.DeepEqual(tC.expectedShardsAdded, added) {
+				t.Errorf("%s added shards should be %v, got %v\n", tC.desc, tC.expectedShardsAdded, added)
+			}
+			if !reflect.DeepEqual(tC.expectedShardsRemoved, removed) {
+				t.Errorf("%s removed shards should be %v, got %v\n", tC.desc, tC.expectedShardsRemoved, removed)
+			}
+			if !reflect.DeepEqual(tC.expectedShardsModified, modified) {
+				t.Errorf("%s modified shards should be %v, got %v\n", tC.desc, tC.expectedShardsModified, modified)
 			}
 		})
 	}
