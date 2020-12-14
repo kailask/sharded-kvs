@@ -1,0 +1,315 @@
+Cases:
+
+New node being added to new shard
+{
+    Reshard: nil,
+    Replicate: false,
+    Remove: true,
+    NewTokens: [some tokens]
+}
+
+Old node not a coordinator being added to new shard
+{
+    Reshard: nil,
+    Replicate: false,
+    Remove: true,
+    NewTokens: [some tokens]
+}
+
+Old node that is a coordinator being added to new shard
+{
+    Reshard: {
+        Propogate: true,
+        Tokens: []
+    },
+    Replicate: false,
+    Remove: true,
+    NewTokens: [some tokens]
+}
+
+Coordinators for affected shards
+{
+    Reshard: {
+        Propogate: true,
+        Tokens: [12, 35,100]
+    },
+    Replicate: false,
+    Remove: false,
+    NewTokens: []
+}
+
+
+New node being added to existing shard
+{
+    Reshard: nil,
+    Replicate: false,
+    Remove: true,
+    NewTokens: []
+}
+{
+    Reshard: nil,
+    Replicate: true,
+    Remove: true,
+    NewTokens: [some tokens]
+}
+
+
+Old node that is not a coordinator being added to existing shard
+{
+    Reshard: nil,
+    Replicate: false,
+    Remove: true,
+    NewTokens: []
+}
+Coordinator for existing shard
+{
+    Reshard: nil,
+    Replicate: true,
+    Remove: false,
+    NewTokens: []
+}
+
+
+Old node that is a coordinator being added to existing shard
+{
+    Reshard: {
+        Propogate: true,
+        Tokens: []
+    },
+    Replicate: false,
+    Remove: true,
+    NewTokens: []
+}
+Coordinator for existing shard
+{
+    Reshard: nil,
+    Replicate: true,
+    Remove: false,
+    NewTokens: []
+}
+
+
+
+
+
+
+
+
+//--------------------------------------
+
+[A,B,C,D,E,F] ---> [A,D,E,G]
+
+{
+    1: [A,B,C],
+    2: [D,E,F]
+}
+
+{
+    1: [A,G],
+    2: [D,E]
+}
+
+F,B,C,G:
+{
+    Reshard: nil,
+    Replicate: false,
+    Remove: true,
+    NewTokens: []
+}
+
+A:
+{
+    Reshard: nil,
+    Replicate: true,
+    Remove: false,
+    NewTokens: []
+}
+
+D,E:
+{
+    Reshard: nil,
+    Replicate: false,
+    Remove: false,
+    NewTokens: []
+}
+
+
+//--------------------------------------
+
+[A,B,C,D,E,F] ---> [A,D,E,G]
+
+{
+    1: [A],
+    2: [B],
+    3: [C],
+    4: [D],
+    5: [E],
+    6: [F],
+}
+{
+    5: [E,D,A,G]
+}
+
+B,C,F:
+{
+    Reshard: {
+        Propogate: true,
+        Tokens: []
+    },
+    Replicate: false,
+    Remove: true,
+    NewTokens: []
+}
+
+E:
+{
+    Reshard: nil,
+    Replicate: true,
+    Remove: false,
+    NewTokens: []
+}
+
+D,A:
+{
+    Reshard: {
+        Propogate: true,
+        Tokens: []
+    },
+    Replicate: false,
+    Remove: true,
+    NewTokens: []
+}
+
+G:
+{
+    Reshard: nil,
+    Replicate: false,
+    Remove: true,
+    NewTokens: []
+}
+
+//--------------------------------------
+
+[A,B,C,D,E,F] ---> [A,B,E,F,G,H]
+
+{
+    1: [A,B,C,D,E,F],
+}
+
+{
+    1: [A,B],
+    2: [E,F],
+    3: [G,H]
+}
+
+C,D:
+{
+    Reshard: nil,
+    Replicate: false,
+    Remove: true,
+    NewTokens: []
+}
+
+G,H:
+{
+    Reshard: nil,
+    Replicate: false,
+    Remove: true,
+    NewTokens: [some tokens]
+}
+
+E,F:
+{
+    Reshard: nil,
+    Replicate: false,
+    Remove: true,
+    NewTokens: [some tokens]
+}
+
+A:
+{
+    Reshard: {
+        Propogate: true,
+        Tokens: [some tokens]
+    },
+    Replicate: false,
+    Remove: false,
+    NewTokens: []
+}
+
+B:
+{
+    Reshard: {
+        Propogate: false,
+        Tokens: [some tokens]
+    },
+    Replicate: false,
+    Remove: false,
+    NewTokens: []
+}
+
+//--------------------------------------
+
+[A,B,C,D,E,F] ---> [B,D,G,H]
+
+{
+    1: [A,F],
+    2: [B,D],
+    3: [C,E],
+}
+
+{
+    1: [D],
+    2: [B],
+    3: [G],
+    4: [H]
+}
+
+F,E:
+{
+    Reshard: nil,
+    Replicate: false,
+    Remove: true,
+    NewTokens: []
+}
+
+B:
+{
+    Reshard: {
+        Propogate: true,
+        Tokens: [some tokens]
+    },
+    Replicate: false,
+    Remove: false,
+    NewTokens: []
+}
+
+D:
+{
+    Reshard: {
+        Propogate: false,
+        Tokens: [some tokens]
+    },
+    Replicate: false,
+    Remove: true,
+    NewTokens: []
+}
+
+G,H:
+{
+    Reshard: nil,
+    Replicate: false,
+    Remove: true,
+    NewTokens: [some tokens]
+}
+
+A,C:
+{
+    Reshard: {
+        Propogate: true,
+        Tokens: [some tokens]
+    },
+    Replicate: false,
+    Remove: true,
+    NewTokens: []
+}
