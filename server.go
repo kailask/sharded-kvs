@@ -309,26 +309,108 @@ func makePost(uri string, data interface{}) bool {
 // 	}
 // }
 
-// //Handle external get requests for node's key count
-// func keyCountHandler(w http.ResponseWriter, r *http.Request) {
-// 	if !AmActive {
-// 		w.WriteHeader(http.StatusForbidden)
-// 		return
-// 	}
+//Handle external get requests for node's key count
+func keyCountHandler(w http.ResponseWriter, r *http.Request) {
+	if !AmActive {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 
-// 	b, err := json.Marshal(struct {
-// 		Message  string `json:"message"`
-// 		KeyCount int    `json:"key-count"`
-// 	}{Message: "Key count retrieved successfully", KeyCount: kvs.KeyCount()})
+	b, err := json.Marshal(struct {
+		Message  string `json:"message"`
+		KeyCount int    `json:"key-count"`
+		ShardID  string `json:"shard-id"`
+	}{Message: "Key count retrieved successfully", KeyCount: kvs.KeyCount(), ShardID: MyView.GetShardID(MyAddress)})
 
-// 	if err == nil {
-// 		w.WriteHeader(http.StatusOK)
-// 		w.Write(b)
-// 	} else {
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		log.Println(err)
-// 	}
-// }
+	if err == nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write(b)
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+	}
+}
+
+func shardsListHandler(w http.ResponseWriter, r *http.Request) {
+	if !AmActive {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	shards := []string{}
+	for shard := range MyView.Shards {
+		shards = append(shards, strconv.Itoa(shard))
+	}
+
+	b, err := json.Marshal(struct {
+		Message string   `json:"message"`
+		Shards  []string `json:"shards"`
+	}{Message: "Shard membership retrieved successfully", Shards: shards})
+
+	if err == nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write(b)
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+	}
+}
+
+func shardDetailsHandler(w http.ResponseWriter, r *http.Request) {
+	if !AmActive {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	shardID := mux.Vars(r)["id"]
+	strID, _ := strconv.Atoi(shardID)
+
+	shards := []string{}
+	for shard := range MyView.Shards {
+		shards = append(shards, strconv.Itoa(shard))
+	}
+
+	keyCount := 0
+
+	uri := fmt.Sprintf("http://%s:%s/kvs/key-count", MyView.Shards[strID][0], Port)
+	res, err := http.Get(uri)
+	if err == nil && res.StatusCode == http.StatusOK {
+		if res.Body != nil {
+			defer res.Body.Close()
+		}
+
+		b, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		v := struct {
+			Message  string `json:"message"`
+			KeyCount int    `json:"key-count"`
+			ShardID  string `json:"shard-id"`
+		}{}
+		err = json.Unmarshal(b, &v)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		keyCount = v.KeyCount
+	}
+
+	b, err := json.Marshal(struct {
+		Message  string   `json:"message"`
+		ShardID  string   `json:"shard-id"`
+		Replicas []string `json:"replicas"`
+		KeyCount int      `json:"key-count"`
+	}{Message: "Shard information retrieved successfully", ShardID: shardID, Replicas: MyView.Shards[strID], KeyCount: keyCount})
+
+	if err == nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write(b)
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+	}
+}
 
 // //Handle external get requests for key
 // func getHandler(w http.ResponseWriter, r *http.Request) {
@@ -560,7 +642,9 @@ func main() {
 	// r.HandleFunc("/kvs/int/{token}/{key}", internalDeleteHandler).Methods(http.MethodDelete)
 
 	// //External endpoints
-	// r.HandleFunc("/kvs/key-count", keyCountHandler).Methods(http.MethodGet)
+	r.HandleFunc("/kvs/key-count", keyCountHandler).Methods(http.MethodGet)
+	r.HandleFunc("/kvs/shards", shardsListHandler).Methods(http.MethodGet)
+	r.HandleFunc("/kvs/shard/{id}", shardDetailsHandler).Methods(http.MethodGet)
 	// r.HandleFunc("/kvs/keys/{key}", getHandler).Methods(http.MethodGet)
 	// r.HandleFunc("/kvs/keys/{key}", setHandler).Methods(http.MethodPut)
 	// r.HandleFunc("/kvs/keys/{key}", deleteHandler).Methods(http.MethodDelete)

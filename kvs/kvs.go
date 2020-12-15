@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"math/rand"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -70,6 +71,18 @@ func KeyCount() int {
 		keyCount += len(token)
 	}
 	return keyCount
+}
+
+//GetShardID return ID of shard
+func (v *View) GetShardID(endpoint string) string {
+	for id, nodes := range v.Shards {
+		for _, node := range nodes {
+			if node == endpoint {
+				return strconv.Itoa(id)
+			}
+		}
+	}
+	return ""
 }
 
 //FindToken returns the token corresponding to a given key
