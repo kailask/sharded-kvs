@@ -20,13 +20,13 @@ var MyKVS = PartitionedKVS{}
 
 //Global constants for kvs
 const (
-	NumTokens = 200
-	MaxHash   = 1000000
+	NumTokens = 5
+	MaxHash   = 100
 )
 
 //Token contains an ip address and value in has space
 type Token struct {
-	Shard uint64 `json:"shard"`
+	Shard int    `json:"shard"`
 	Value uint64 `json:"value"`
 }
 
@@ -34,7 +34,7 @@ type Token struct {
 type View struct {
 	Nodes  []string `json:"nodes"`
 	Tokens []Token  `json:"tokens"`
-	Shards map[uint64][]string
+	Shards map[int][]string
 }
 
 //Get returns the value given the key and token
@@ -87,39 +87,70 @@ func (v *View) FindToken(key string) Token {
 	return v.Tokens[tokenIndex]
 }
 
-//ChangeView changes view struct given new state of active nodes. Returns map of changes and map of new nodes
-func (v *View) ChangeView(nodes []string) (map[string]*Change, map[string]bool) {
-	addedNodes, removedNodes := v.calcNodeDiff(nodes)
-	addedTokens := generateTokens(addedNodes)
-	tokens, changes, err := v.mergeTokens(addedTokens, addedNodes, removedNodes)
-
-	//Regerate tokens if there were collisions
-	for err {
-		addedTokens = generateTokens(addedNodes)
-		tokens, changes, err = v.mergeTokens(addedTokens, addedNodes, removedNodes)
+//SetTokens sets the tokens
+func SetTokens(tokens []Token) {
+	for _, token := range tokens {
+		MyKVS[token.Value] = make(KVS)
 	}
-
-	v.Nodes = nodes
-	v.Tokens = tokens
-	return changes, addedNodes
 }
 
-//Generate list of random tokens given map of nodes to add
-func generateTokens(addedNodes map[string]bool) []Token {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	tokens := []Token{}
+//GenerateView changes view struct given new state of active nodes. Returns map of changes and map of new nodes
+func (v *View) GenerateView(nodes []string, repl int) map[string][]Token {
+	numShards := len(nodes) / repl
+	tokensMap, shardTokens := generateTokens(numShards)
 
-	for node := range addedNodes {
-		for i := 0; i < NumTokens; i++ {
-			tokens = append(tokens, Token{Endpoint: node, Value: r.Uint64() % MaxHash})
+	shards := make(map[int][]string)
+	for i := 0; i < len(nodes); i++ {
+		shardNum := i % numShards
+		if n, exists := shards[shardNum]; exists {
+			shards[shardNum] = append(n, nodes[i])
+		} else {
+			shards[shardNum] = []string{nodes[i]}
 		}
+	}
+
+	tokens := []Token{}
+	for _, v := range tokensMap {
+		tokens = append(tokens, v)
 	}
 
 	sort.Slice(tokens, func(i, j int) bool {
 		return tokens[i].Value < tokens[j].Value
 	})
 
-	return tokens
+	nodeTokens := make(map[string][]Token)
+	for k, v := range shardTokens {
+		for _, node := range shards[k] {
+			nodeTokens[node] = v
+		}
+	}
+
+	v.Nodes = nodes
+	v.Tokens = tokens
+	v.Shards = shards
+	return nodeTokens
+}
+
+//Generate list of random tokens given map of nodes to add
+func generateTokens(numShards int) (map[uint64]Token, map[int][]Token) {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	tokens := make(map[uint64]Token)
+	shardTokens := make(map[int][]Token)
+
+	for shard := 0; shard < numShards; shard++ {
+		shardTokens[shard] = []Token{}
+		for i := 0; i < NumTokens; i++ {
+			t := Token{Shard: shard, Value: r.Uint64() % MaxHash}
+			if _, exists := tokens[t.Value]; exists {
+				i--
+			} else {
+				tokens[t.Value] = t
+				shardTokens[shard] = append(shardTokens[shard], t)
+			}
+		}
+	}
+
+	return tokens, shardTokens
 }
 
 //genereate the position of a key in the hash space
