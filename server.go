@@ -406,13 +406,17 @@ func shardDetailsHandler(w http.ResponseWriter, r *http.Request) {
 
 		keyCount = v.KeyCount
 	}
+	replicas := []string{}
+	for _, node := range MyView.Shards[strID] {
+		replicas = append(replicas, node+":"+Port)
+	}
 
 	b, err := json.Marshal(struct {
 		Message  string   `json:"message"`
 		ShardID  string   `json:"shard-id"`
 		Replicas []string `json:"replicas"`
 		KeyCount int      `json:"key-count"`
-	}{Message: "Shard information retrieved successfully", ShardID: shardID, Replicas: MyView.Shards[strID], KeyCount: keyCount})
+	}{Message: "Shard information retrieved successfully", ShardID: shardID, Replicas: replicas, KeyCount: keyCount})
 
 	if err == nil {
 		w.WriteHeader(http.StatusOK)
@@ -547,15 +551,22 @@ func setHandler(w http.ResponseWriter, r *http.Request) {
 		//find the list of endpoints pertaining to the shard that needs updating
 		endpoints := MyView.Shards[token.Shard]
 		first := true
-
+		var remoteEndpoint string
+		isMyAddress := false
 		for _, endpoint := range endpoints {
+			if endpoint == MyAddress {
+				isMyAddress = true
+			}
 			upd, erro := executeSet(endpoint, token, key, req)
 			if err == nil && first {
-				res.Address = endpoint + ":" + Port
+				remoteEndpoint = endpoint + ":" + Port
 				first = false
 				updated = upd
 				err = erro
 			}
+		}
+		if !isMyAddress {
+			res.Address = remoteEndpoint
 		}
 
 		if err != nil {
@@ -681,7 +692,7 @@ func main() {
 	// //External endpoints
 	r.HandleFunc("/kvs/key-count", keyCountHandler).Methods(http.MethodGet)
 	r.HandleFunc("/kvs/shards", shardsListHandler).Methods(http.MethodGet)
-	r.HandleFunc("/kvs/shard/{id}", shardDetailsHandler).Methods(http.MethodGet)
+	r.HandleFunc("/kvs/shards/{id}", shardDetailsHandler).Methods(http.MethodGet)
 	r.HandleFunc("/kvs/keys/{key}", getHandler).Methods(http.MethodGet)
 	r.HandleFunc("/kvs/keys/{key}", setHandler).Methods(http.MethodPut)
 	// r.HandleFunc("/kvs/keys/{key}", deleteHandler).Methods(http.MethodDelete)
