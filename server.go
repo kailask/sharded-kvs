@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -140,174 +141,174 @@ func makePost(uri string, data interface{}) bool {
 	return false
 }
 
-// //Execute an internal get request to another node and return the value
-// func executeGet(token kvs.Token, key string) (string, error) {
-// 	var value string
-// 	tokenValue := strconv.FormatUint(token.Value, 10)
-// 	uri := fmt.Sprintf("http://%s:%s/kvs/int/%s/%s", token.Endpoint, Port, tokenValue, key)
-// 	res, err := http.Get(uri)
-// 	if err != nil {
-// 		return value, err
-// 	}
+//Execute an internal get request to another node and return the value
+func executeGet(token kvs.Token, key string) (string, error) {
+	var value string
+	tokenValue := strconv.FormatUint(token.Value, 10)
+	uri := fmt.Sprintf("http://%s:%s/kvs/int/%s/%s", token.Endpoint, Port, tokenValue, key)
+	res, err := http.Get(uri)
+	if err != nil {
+		return value, err
+	}
 
-// 	if res.StatusCode == http.StatusOK {
-// 		if res.Body != nil {
-// 			defer res.Body.Close()
-// 		}
+	if res.StatusCode == http.StatusOK {
+		if res.Body != nil {
+			defer res.Body.Close()
+		}
 
-// 		b, err := ioutil.ReadAll(res.Body)
-// 		if err != nil {
-// 			return value, err
-// 		}
+		b, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return value, err
+		}
 
-// 		v := keyValue{}
-// 		err = json.Unmarshal(b, &v)
-// 		if err != nil {
-// 			return value, err
-// 		}
-// 		value = *v.Value
-// 		return value, nil
-// 	}
-// 	return value, errors.New("Node returned not-ok status")
-// }
+		v := keyValue{}
+		err = json.Unmarshal(b, &v)
+		if err != nil {
+			return value, err
+		}
+		value = *v.Value
+		return value, nil
+	}
+	return value, errors.New("Node returned not-ok status")
+}
 
-// //Execute an internal set request to another node and return if a key was updated
-// func executeSet(token kvs.Token, key string, value keyValue) (bool, error) {
-// 	tokenValue := strconv.FormatUint(token.Value, 10)
-// 	uri := fmt.Sprintf("http://%s:%s/kvs/int/%s/%s", token.Endpoint, Port, tokenValue, key)
-// 	b, err := json.Marshal(value)
-// 	if err != nil {
-// 		return false, err
-// 	}
+//Execute an internal set request to another node and return if a key was updated
+func executeSet(token kvs.Token, key string, value keyValue) (bool, error) {
+	tokenValue := strconv.FormatUint(token.Value, 10)
+	uri := fmt.Sprintf("http://%s:%s/kvs/int/%s/%s", token.Endpoint, Port, tokenValue, key)
+	b, err := json.Marshal(value)
+	if err != nil {
+		return false, err
+	}
 
-// 	req, err := http.NewRequest(http.MethodPut, uri, bytes.NewBuffer(b))
-// 	if err != nil {
-// 		return false, err
-// 	}
+	req, err := http.NewRequest(http.MethodPut, uri, bytes.NewBuffer(b))
+	if err != nil {
+		return false, err
+	}
 
-// 	res, err := http.DefaultClient.Do(req)
-// 	if err != nil {
-// 		return false, err
-// 	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false, err
+	}
 
-// 	if res.StatusCode == http.StatusOK {
-// 		return true, nil
-// 	} else if res.StatusCode == http.StatusCreated {
-// 		return false, nil
-// 	}
-// 	return false, errors.New("Node returned bad status")
-// }
+	if res.StatusCode == http.StatusOK {
+		return true, nil
+	} else if res.StatusCode == http.StatusCreated {
+		return false, nil
+	}
+	return false, errors.New("Node returned bad status")
+}
 
-// //Execute an internal delete request to another node and return if a key was deleted
-// func executeDelete(token kvs.Token, key string) error {
-// 	tokenValue := strconv.FormatUint(token.Value, 10)
-// 	uri := fmt.Sprintf("http://%s:%s/kvs/int/%s/%s", token.Endpoint, Port, tokenValue, key)
-// 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
-// 	if err != nil {
-// 		return err
-// 	}
+//Execute an internal delete request to another node and return if a key was deleted
+func executeDelete(token kvs.Token, key string) error {
+	tokenValue := strconv.FormatUint(token.Value, 10)
+	uri := fmt.Sprintf("http://%s:%s/kvs/int/%s/%s", token.Endpoint, Port, tokenValue, key)
+	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+	if err != nil {
+		return err
+	}
 
-// 	res, err := http.DefaultClient.Do(req)
-// 	if err != nil {
-// 		return err
-// 	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
 
-// 	if res.StatusCode == http.StatusOK {
-// 		return nil
-// 	}
-// 	return errors.New("Node returned bad status")
-// }
+	if res.StatusCode == http.StatusOK {
+		return nil
+	}
+	return errors.New("Node returned bad status")
+}
 
-// //Handle internal get request with token in url
-// func internalGetHandler(w http.ResponseWriter, r *http.Request) {
-// 	if !AmActive {
-// 		w.WriteHeader(http.StatusForbidden)
-// 		return
-// 	}
+//Handle internal get request with token in url
+func internalGetHandler(w http.ResponseWriter, r *http.Request) {
+	if !AmActive {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 
-// 	//Key and token are in url
-// 	key := mux.Vars(r)["key"]
-// 	token, _ := strconv.ParseUint(mux.Vars(r)["token"], 10, 64)
+	//Key and token are in url
+	key := mux.Vars(r)["key"]
+	token, _ := strconv.ParseUint(mux.Vars(r)["token"], 10, 64)
 
-// 	//Check specified token for key
-// 	if v, exists := kvs.Get(token, key); exists {
-// 		b, err := json.Marshal(keyValue{Value: &v})
+	//Check specified token for key
+	if v, exists := kvs.Get(token, key); exists {
+		b, err := json.Marshal(keyValue{Value: &v})
 
-// 		if err == nil {
-// 			w.WriteHeader(http.StatusOK)
-// 			w.Write(b)
-// 		} else {
-// 			w.WriteHeader(http.StatusInternalServerError)
-// 			log.Println(err)
-// 		}
-// 	} else {
-// 		w.WriteHeader(http.StatusNotFound)
-// 	}
-// }
+		if err == nil {
+			w.WriteHeader(http.StatusOK)
+			w.Write(b)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println(err)
+		}
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+	}
+}
 
-// //Handle internal get request with token in url
-// func internalSetHandler(w http.ResponseWriter, r *http.Request) {
-// 	if !AmActive {
-// 		w.WriteHeader(http.StatusForbidden)
-// 		return
-// 	}
+//Handle internal get request with token in url
+func internalSetHandler(w http.ResponseWriter, r *http.Request) {
+	if !AmActive {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 
-// 	//Key and token are in url
-// 	key := mux.Vars(r)["key"]
-// 	token, _ := strconv.ParseUint(mux.Vars(r)["token"], 10, 64)
+	//Key and token are in url
+	key := mux.Vars(r)["key"]
+	token, _ := strconv.ParseUint(mux.Vars(r)["token"], 10, 64)
 
-// 	if r.Body != nil {
-// 		defer r.Body.Close()
-// 	}
+	if r.Body != nil {
+		defer r.Body.Close()
+	}
 
-// 	b, err := ioutil.ReadAll(r.Body)
-// 	if err != nil {
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		log.Println(err)
-// 		return
-// 	}
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
 
-// 	value := keyValue{}
-// 	err = json.Unmarshal(b, &value)
-// 	if err != nil {
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		log.Println(err)
-// 		return
-// 	}
+	value := keyValue{}
+	err = json.Unmarshal(b, &value)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
 
-// 	//Try to set value
-// 	updated, err := kvs.Set(token, key, *value.Value)
-// 	if err != nil {
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		log.Println(err)
-// 		return
-// 	}
+	//Try to set value
+	updated, err := kvs.Set(token, key, *value.Value)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
 
-// 	if updated {
-// 		w.WriteHeader(http.StatusOK)
-// 	} else {
-// 		w.WriteHeader(http.StatusCreated)
-// 	}
-// }
+	if updated {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		w.WriteHeader(http.StatusCreated)
+	}
+}
 
-// //Handle internal delete request with token in url
-// func internalDeleteHandler(w http.ResponseWriter, r *http.Request) {
-// 	if !AmActive {
-// 		w.WriteHeader(http.StatusForbidden)
-// 		return
-// 	}
+//Handle internal delete request with token in url
+func internalDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	if !AmActive {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 
-// 	//Key and token are in url
-// 	key := mux.Vars(r)["key"]
-// 	token, _ := strconv.ParseUint(mux.Vars(r)["token"], 10, 64)
+	//Key and token are in url
+	key := mux.Vars(r)["key"]
+	token, _ := strconv.ParseUint(mux.Vars(r)["token"], 10, 64)
 
-// 	//Check specified token for key
-// 	if err := kvs.Delete(token, key); err == nil {
-// 		w.WriteHeader(http.StatusOK)
-// 	} else {
-// 		w.WriteHeader(http.StatusNotFound)
-// 	}
-// }
+	//Check specified token for key
+	if err := kvs.Delete(token, key); err == nil {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+	}
+}
 
 //Handle external get requests for node's key count
 func keyCountHandler(w http.ResponseWriter, r *http.Request) {
@@ -412,183 +413,183 @@ func shardDetailsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// //Handle external get requests for key
-// func getHandler(w http.ResponseWriter, r *http.Request) {
-// 	if !AmActive {
-// 		w.WriteHeader(http.StatusForbidden)
-// 		return
-// 	}
+//Handle external get requests for key
+func getHandler(w http.ResponseWriter, r *http.Request) {
+	if !AmActive {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 
-// 	key := mux.Vars(r)["key"]
-// 	token := MyView.FindToken(key)
-// 	var value *string
-// 	res := struct {
-// 		DoesExist bool   `json:"doesExist"`
-// 		Error     string `json:"error,omitempty"`
-// 		Message   string `json:"message"`
-// 		Value     string `json:"value,omitempty"`
-// 		Address   string `json:"address,omitempty"`
-// 	}{}
+	key := mux.Vars(r)["key"]
+	token := MyView.FindToken(key)
+	var value *string
+	res := struct {
+		DoesExist bool   `json:"doesExist"`
+		Error     string `json:"error,omitempty"`
+		Message   string `json:"message"`
+		Value     string `json:"value,omitempty"`
+		Address   string `json:"address,omitempty"`
+	}{}
 
-// 	if token.Endpoint == MyAddress {
-// 		//Key would be stored locally
-// 		if v, exists := kvs.Get(token.Value, key); exists {
-// 			value = &v
-// 		}
-// 	} else {
-// 		//Key would exist on other node
-// 		res.Address = token.Endpoint + ":" + Port
-// 		returnedValue, err := executeGet(token, key)
-// 		if err == nil {
-// 			value = &returnedValue
-// 		}
-// 	}
+	if token.Endpoint == MyAddress {
+		//Key would be stored locally
+		if v, exists := kvs.Get(token.Value, key); exists {
+			value = &v
+		}
+	} else {
+		//Key would exist on other node
+		res.Address = token.Endpoint + ":" + Port
+		returnedValue, err := executeGet(token, key)
+		if err == nil {
+			value = &returnedValue
+		}
+	}
 
-// 	if value != nil {
-// 		res.DoesExist = true
-// 		res.Message = "Retrieved successfully"
-// 		res.Value = *value
-// 		w.WriteHeader(http.StatusOK)
-// 	} else {
-// 		res.DoesExist = false
-// 		res.Error = "Key does not exist"
-// 		res.Message = "Error in GET"
-// 		w.WriteHeader(http.StatusNotFound)
-// 	}
+	if value != nil {
+		res.DoesExist = true
+		res.Message = "Retrieved successfully"
+		res.Value = *value
+		w.WriteHeader(http.StatusOK)
+	} else {
+		res.DoesExist = false
+		res.Error = "Key does not exist"
+		res.Message = "Error in GET"
+		w.WriteHeader(http.StatusNotFound)
+	}
 
-// 	b, err := json.Marshal(res)
-// 	if err == nil {
-// 		w.Write(b)
-// 	} else {
-// 		log.Println(err)
-// 	}
-// }
+	b, err := json.Marshal(res)
+	if err == nil {
+		w.Write(b)
+	} else {
+		log.Println(err)
+	}
+}
 
-// //Handle external put requests for key
-// func setHandler(w http.ResponseWriter, r *http.Request) {
-// 	if r.Body != nil {
-// 		defer r.Body.Close()
-// 	}
+//Handle external put requests for key
+func setHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Body != nil {
+		defer r.Body.Close()
+	}
 
-// 	if !AmActive {
-// 		w.WriteHeader(http.StatusForbidden)
-// 		return
-// 	}
+	if !AmActive {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 
-// 	b, err := ioutil.ReadAll(r.Body)
-// 	if err != nil {
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		log.Println(err)
-// 		return
-// 	}
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
 
-// 	res := struct {
-// 		Replaced bool   `json:"replaced"`
-// 		Error    string `json:"error,omitempty"`
-// 		Message  string `json:"message"`
-// 		Address  string `json:"address,omitempty"`
-// 	}{}
-// 	key := mux.Vars(r)["key"]
-// 	req := keyValue{}
-// 	err = json.Unmarshal(b, &req)
-// 	if err != nil {
-// 		w.WriteHeader(http.StatusInternalServerError)
-// 		log.Println(err)
-// 		return
-// 	}
+	res := struct {
+		Replaced bool   `json:"replaced"`
+		Error    string `json:"error,omitempty"`
+		Message  string `json:"message"`
+		Address  string `json:"address,omitempty"`
+	}{}
+	key := mux.Vars(r)["key"]
+	req := keyValue{}
+	err = json.Unmarshal(b, &req)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
 
-// 	if req.Value == nil {
-// 		res.Error = "Value is missing"
-// 		res.Message = "Error in PUT"
-// 		w.WriteHeader(http.StatusBadRequest)
-// 	} else if len(key) > 50 {
-// 		res.Error = "Key is too long"
-// 		res.Message = "Error in PUT"
-// 		w.WriteHeader(http.StatusBadRequest)
-// 	} else {
-// 		//Find token for key
-// 		token := MyView.FindToken(key)
-// 		var updated bool
-// 		var err error
+	if req.Value == nil {
+		res.Error = "Value is missing"
+		res.Message = "Error in PUT"
+		w.WriteHeader(http.StatusBadRequest)
+	} else if len(key) > 50 {
+		res.Error = "Key is too long"
+		res.Message = "Error in PUT"
+		w.WriteHeader(http.StatusBadRequest)
+	} else {
+		//Find token for key
+		token := MyView.FindToken(key)
+		var updated bool
+		var err error
 
-// 		if token.Endpoint == MyAddress {
-// 			//Key should be stored locally
-// 			updated, err = kvs.Set(token.Value, key, *req.Value)
+		if token.Endpoint == MyAddress {
+			//Key should be stored locally
+			updated, err = kvs.Set(token.Value, key, *req.Value)
 
-// 		} else {
-// 			//Key should exist on other node
-// 			res.Address = token.Endpoint + ":" + Port
-// 			updated, err = executeSet(token, key, req)
-// 		}
+		} else {
+			//Key should exist on other node
+			res.Address = token.Endpoint + ":" + Port
+			updated, err = executeSet(token, key, req)
+		}
 
-// 		if err != nil {
-// 			w.WriteHeader(http.StatusInternalServerError)
-// 			log.Println(err)
-// 			return
-// 		}
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println(err)
+			return
+		}
 
-// 		res.Replaced = updated
-// 		if updated {
-// 			res.Message = "Updated successfully"
-// 			w.WriteHeader(http.StatusOK)
-// 		} else {
-// 			res.Message = "Added successfully"
-// 			w.WriteHeader(http.StatusCreated)
-// 		}
-// 	}
+		res.Replaced = updated
+		if updated {
+			res.Message = "Updated successfully"
+			w.WriteHeader(http.StatusOK)
+		} else {
+			res.Message = "Added successfully"
+			w.WriteHeader(http.StatusCreated)
+		}
+	}
 
-// 	b, err = json.Marshal(res)
-// 	if err == nil {
-// 		w.Write(b)
-// 	} else {
-// 		log.Println(err)
-// 	}
-// }
+	b, err = json.Marshal(res)
+	if err == nil {
+		w.Write(b)
+	} else {
+		log.Println(err)
+	}
+}
 
-// //Handle external get requests for key
-// func deleteHandler(w http.ResponseWriter, r *http.Request) {
-// 	if !AmActive {
-// 		w.WriteHeader(http.StatusForbidden)
-// 		return
-// 	}
+//Handle external get requests for key
+func deleteHandler(w http.ResponseWriter, r *http.Request) {
+	if !AmActive {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 
-// 	key := mux.Vars(r)["key"]
-// 	token := MyView.FindToken(key)
-// 	res := struct {
-// 		DoesExist bool   `json:"doesExist"`
-// 		Error     string `json:"error,omitempty"`
-// 		Message   string `json:"message"`
-// 		Address   string `json:"address,omitempty"`
-// 	}{}
+	key := mux.Vars(r)["key"]
+	token := MyView.FindToken(key)
+	res := struct {
+		DoesExist bool   `json:"doesExist"`
+		Error     string `json:"error,omitempty"`
+		Message   string `json:"message"`
+		Address   string `json:"address,omitempty"`
+	}{}
 
-// 	var err error
-// 	if token.Endpoint == MyAddress {
-// 		//Key would be stored locally
-// 		err = kvs.Delete(token.Value, key)
-// 	} else {
-// 		//Key would exist on other node
-// 		res.Address = token.Endpoint + ":" + Port
-// 		err = executeDelete(token, key)
-// 	}
+	var err error
+	if token.Endpoint == MyAddress {
+		//Key would be stored locally
+		err = kvs.Delete(token.Value, key)
+	} else {
+		//Key would exist on other node
+		res.Address = token.Endpoint + ":" + Port
+		err = executeDelete(token, key)
+	}
 
-// 	if err == nil {
-// 		res.DoesExist = true
-// 		res.Message = "Deleted successfully"
-// 		w.WriteHeader(http.StatusOK)
-// 	} else {
-// 		res.DoesExist = false
-// 		res.Error = "Key does not exist"
-// 		res.Message = "Error in DELETE"
-// 		w.WriteHeader(http.StatusNotFound)
-// 	}
+	if err == nil {
+		res.DoesExist = true
+		res.Message = "Deleted successfully"
+		w.WriteHeader(http.StatusOK)
+	} else {
+		res.DoesExist = false
+		res.Error = "Key does not exist"
+		res.Message = "Error in DELETE"
+		w.WriteHeader(http.StatusNotFound)
+	}
 
-// 	b, err := json.Marshal(res)
-// 	if err == nil {
-// 		w.Write(b)
-// 	} else {
-// 		log.Println(err)
-// 	}
-// }
+	b, err := json.Marshal(res)
+	if err == nil {
+		w.Write(b)
+	} else {
+		log.Println(err)
+	}
+}
 
 //Print state of system
 func debugHandler(w http.ResponseWriter, r *http.Request) {
@@ -637,17 +638,17 @@ func main() {
 
 	//Internal endpoints
 	r.HandleFunc("/kvs/int/init", initHandler).Methods(http.MethodGet)
-	// r.HandleFunc("/kvs/int/{token}/{key}", internalGetHandler).Methods(http.MethodGet)
-	// r.HandleFunc("/kvs/int/{token}/{key}", internalSetHandler).Methods(http.MethodPut)
-	// r.HandleFunc("/kvs/int/{token}/{key}", internalDeleteHandler).Methods(http.MethodDelete)
+	r.HandleFunc("/kvs/int/{token}/{key}", internalGetHandler).Methods(http.MethodGet)
+	r.HandleFunc("/kvs/int/{token}/{key}", internalSetHandler).Methods(http.MethodPut)
+	r.HandleFunc("/kvs/int/{token}/{key}", internalDeleteHandler).Methods(http.MethodDelete)
 
 	// //External endpoints
 	r.HandleFunc("/kvs/key-count", keyCountHandler).Methods(http.MethodGet)
 	r.HandleFunc("/kvs/shards", shardsListHandler).Methods(http.MethodGet)
 	r.HandleFunc("/kvs/shard/{id}", shardDetailsHandler).Methods(http.MethodGet)
-	// r.HandleFunc("/kvs/keys/{key}", getHandler).Methods(http.MethodGet)
-	// r.HandleFunc("/kvs/keys/{key}", setHandler).Methods(http.MethodPut)
-	// r.HandleFunc("/kvs/keys/{key}", deleteHandler).Methods(http.MethodDelete)
+	r.HandleFunc("/kvs/keys/{key}", getHandler).Methods(http.MethodGet)
+	r.HandleFunc("/kvs/keys/{key}", setHandler).Methods(http.MethodPut)
+	r.HandleFunc("/kvs/keys/{key}", deleteHandler).Methods(http.MethodDelete)
 	r.HandleFunc("/kvs/debug", debugHandler)
 
 	http.Handle("/", r)
