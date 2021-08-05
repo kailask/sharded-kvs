@@ -29,7 +29,7 @@ curl --request GET                                   \
      http://localhost:13801/kvs/keys/sampleKey
 
 # ------------------------------
-# Now we start a new node and add it to the existing store
+# Add 3rd node into view
 
 curl --request PUT                                   \
      --header "Content-Type: application/json"       \
