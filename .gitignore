@@ -3,7 +3,6 @@
 .vscode
 
 #Testing
-*.py
 *.txt
 *.text
 testing.go
