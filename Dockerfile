@@ -6,4 +6,4 @@ COPY . .
 RUN go get -d
 RUN go install
 
-CMD [ "server" ]
+CMD [ "sharded-kvs" ]

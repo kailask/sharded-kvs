@@ -3,9 +3,7 @@
 .vscode
 
 #Testing
-*.sh
 *.py
 *.txt
 *.text
 testing.go
-test.py

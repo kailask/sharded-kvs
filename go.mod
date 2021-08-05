@@ -1,4 +1,4 @@
-module server
+module github.com/kailask/sharded-kvs
 
 go 1.13
 
