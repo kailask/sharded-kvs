@@ -1,6 +1,6 @@
 # Sharded KVS
 
-A simple in-memory key-value store capable of sharding data across multiple storage nodes to improve scability and performance. It supports dynamic addition and removal of storage nodes by repartiting data across nodes with consistent hashing.
+A simple in-memory key-value store capable of sharding data across multiple storage nodes to improve scalability and performance. It supports dynamic addition and removal of storage nodes by repartitioning data across nodes using consistent hashing.
 
 ## Overview
 
@@ -23,7 +23,7 @@ Nodes can be added and removed dynamically while the system is running. To do th
 
 ### Running
 
-Storage nodes for sharded-kvs can be run easily inside Docker containers. Each node must have its own IP address set as an environment variable. It must also have a list of all IP addresses for nodes in the initial `view`. They must be in the same order for every node.
+Storage nodes for Sharded KVS can be run easily inside Docker containers. Each node must have its own IP address set as an environment variable. It must also have a list of all IP addresses for nodes in the initial `view`. They must be in the same order for every node.
 
 ```
 $ docker run -d -p 13801:13800 --net=sharded-kvs-subnet --ip=10.10.0.4 --name="node1" 
@@ -54,7 +54,7 @@ The first node in the list will be the setup coordinator. All other nodes will c
 
 The key-space needs to be partitioned between the available storage nodes in a deterministic way such that each key-value pair belongs to a single node. It should also be partitioned in a stable way so that addition or removal of a node does not require significant repartitioning. Finally, the sharding should be balanced so that each node holds aproximately the same number of pairs.
 
-Consistent hashing is used to satisfy these requirements. The key-space is divided into many `tokens` and each `token` is assigned to a node. The number of `tokens` is much greater than the number of nodes to improve distribution balance between nodes.
+Consistent hashing is used to satisfy these requirements. The key-space is divided into many `tokens` and each `token` is assigned to a node. The number of `tokens` is much greater than the number of nodes to improve distribution balance of keys between nodes.
 
 <p align="center">
     <img src="assets/hashing.png" alt="Hashing"/>
